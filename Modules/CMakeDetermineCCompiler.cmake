@@ -126,6 +126,12 @@ IF(NOT CMAKE_C_COMPILER_ID_RUN)
   SET(CMAKE_C_COMPILER_ID)
   FILE(READ ${CMAKE_ROOT}/Modules/CMakePlatformId.h.in
     CMAKE_C_COMPILER_ID_PLATFORM_CONTENT)
+
+  # The IAR compiler produces weird output, see #19598 at http://public.kitware.com/Bug/view.php?id=10176
+  LIST(APPEND CMAKE_C_COMPILER_ID_VENDORS IAR)
+  SET(CMAKE_C_COMPILER_ID_VENDOR_FLAGS_IAR )
+  SET(CMAKE_C_COMPILER_ID_VENDOR_REGEX_IAR "IAR .+ Compiler")
+
   INCLUDE(${CMAKE_ROOT}/Modules/CMakeDetermineCompilerId.cmake)
   CMAKE_DETERMINE_COMPILER_ID(C CFLAGS CMakeCCompilerId.c)
 
