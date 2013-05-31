@@ -21,7 +21,7 @@ class cmTarget;
 class cmGeneratedFileStream;
 
 /** \class cmExtraKateGenerator
- * \brief Write CodeBlocks project files for Makefile based projects
+ * \brief Write Kate project files for Makefile based projects
  */
 class cmExtraKateGenerator : public cmExternalMakefileProjectGenerator
 {

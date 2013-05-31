@@ -28,14 +28,11 @@ void cmExtraKateGenerator
 ::GetDocumentation(cmDocumentationEntry& entry, const char*) const
 {
   entry.Name = this->GetName();
-  entry.Brief = "Generates CodeBlocks project files.";
+  entry.Brief = "Generates Kate project files.";
   entry.Full =
-    "Project files for CodeBlocks will be created in the top directory "
-    "and in every subdirectory which features a CMakeLists.txt file "
-    "containing a PROJECT() call. "
-    "Additionally a hierarchy of makefiles is generated into the "
-    "build tree.  The appropriate make program can build the project through "
-    "the default make target.  A \"make install\" target is also provided.";
+    "A .kateproject file for the project plugin of Kate will be created in "
+    "the top level build directory, along with a <projectname>.kateproject. "
+    "By opening this file the project will be loaded. ";
 }
 
 cmExtraKateGenerator::cmExtraKateGenerator()
@@ -82,6 +79,7 @@ void cmExtraKateGenerator::CreateKateProjectFile(const cmMakefile* mf) const
     "\t\"name\": \"" << this->ProjectName << "\",\n"
     "\t\"directory\": \"" << mf->GetHomeDirectory() << "\",\n"
     "\t\"files\": [ { " << this->GenerateFilesString(mf) << "} ],\n";
+
   this->WriteTargets(mf, fout);
   fout << "}\n";
 }
@@ -103,6 +101,9 @@ cmExtraKateGenerator::WriteTargets(const cmMakefile* mf,
   const std::string make = mf->GetRequiredDefinition("CMAKE_MAKE_PROGRAM");
   const std::string makeArgs = mf->GetSafeDefinition(
                                               "CMAKE_KATE_MAKE_ARGUMENTS");
+
+  this->AppendTarget(fout, "all", make, makeArgs, mf->GetHomeOutputDirectory());
+  this->AppendTarget(fout, "clean", make, makeArgs, mf->GetHomeOutputDirectory());
 
   // add all executable and library targets and some of the GLOBAL
   // and UTILITY targets
@@ -204,10 +205,13 @@ cmExtraKateGenerator::AppendTarget(cmGeneratedFileStream& fout,
                                    const std::string&     makeArgs,
                                    const std::string&     path) const
 {
+  static char JsonSep = ' ';
   fout <<
-    "\t\t\t{\"name\":\"" << target << "\", "
+    "\t\t\t" << JsonSep << "{\"name\":\"" << target << "\", "
     "\"build_dir\":\"" << path << "\", "
-    "\"build_cmd\":\"" << make << " " << makeArgs << " " << target << "\"},\n";
+    "\"build_cmd\":\"" << make << " " << makeArgs << " " << target << "\"}\n";
+
+  JsonSep = ',';
 }
 
 
