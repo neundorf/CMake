@@ -208,8 +208,8 @@ cmExtraKateGenerator::AppendTarget(cmGeneratedFileStream& fout,
   static char JsonSep = ' ';
   fout <<
     "\t\t\t" << JsonSep << "{\"name\":\"" << target << "\", "
-    "\"build_dir\":\"" << path << "\", "
-    "\"build_cmd\":\"" << make << " " << makeArgs << " " << target << "\"}\n";
+    "\"build_dir\":\"\", "
+    "\"build_cmd\":\"" << make << " -C " << path << " " << makeArgs << " " << target << "\"}\n";
 
   JsonSep = ',';
 }
