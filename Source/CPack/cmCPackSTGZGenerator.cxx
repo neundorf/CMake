@@ -14,12 +14,11 @@
 
 #include "cmake.h"
 #include "cmGlobalGenerator.h"
-#include "cmLocalGenerator.h"
 #include "cmSystemTools.h"
 #include "cmMakefile.h"
 #include "cmCPackLog.h"
 
-#include <cmsys/ios/sstream>
+#include <cmsys/FStream.hxx>
 #include <sys/types.h>
 #include <sys/stat.h>
 
@@ -42,7 +41,7 @@ int cmCPackSTGZGenerator::InitializeInternal()
   if ( inFile.empty() )
     {
     cmCPackLogger(cmCPackLog::LOG_ERROR, "Cannot find template file: "
-      << inFile.c_str() << std::endl);
+      << inFile << std::endl);
     return 0;
     }
   this->SetOptionIfNotSet("CPACK_STGZ_HEADER_FILE", inFile.c_str());
@@ -54,46 +53,55 @@ int cmCPackSTGZGenerator::InitializeInternal()
 //----------------------------------------------------------------------
 int cmCPackSTGZGenerator::PackageFiles()
 {
+ bool retval = true;
   if ( !this->Superclass::PackageFiles() )
     {
     return 0;
     }
-  return cmSystemTools::SetPermissions(packageFileNames[0].c_str(),
+
+  /* TGZ generator (our Superclass) may
+   * have generated several packages (component packaging)
+   * so we must iterate over generated packages.
+   */
+  for (std::vector<std::string>::iterator it=packageFileNames.begin();
+       it != packageFileNames.end(); ++it)
+  {
+    retval &= cmSystemTools::SetPermissions((*it).c_str(),
 #if defined( _MSC_VER ) || defined( __MINGW32__ )
-    S_IREAD | S_IWRITE | S_IEXEC
-#elif defined( __BORLANDC__ )
-    S_IRUSR | S_IWUSR | S_IXUSR
+      S_IREAD | S_IWRITE | S_IEXEC
 #else
-    S_IRUSR | S_IWUSR | S_IXUSR |
-    S_IRGRP | S_IWGRP | S_IXGRP |
-    S_IROTH | S_IWOTH | S_IXOTH
+      S_IRUSR | S_IWUSR | S_IXUSR |
+      S_IRGRP | S_IWGRP | S_IXGRP |
+      S_IROTH | S_IWOTH | S_IXOTH
 #endif
-  );
+    );
+  }
+  return retval;
 }
 
 //----------------------------------------------------------------------
 int cmCPackSTGZGenerator::GenerateHeader(std::ostream* os)
 {
   cmCPackLogger(cmCPackLog::LOG_DEBUG, "Writing header" << std::endl);
-  cmsys_ios::ostringstream str;
+  std::ostringstream str;
   int counter = 0;
 
   std::string inLicFile = this->GetOption("CPACK_RESOURCE_FILE_LICENSE");
   std::string line;
-  std::ifstream ilfs(inLicFile.c_str());
+  cmsys::ifstream ilfs(inLicFile.c_str());
   std::string licenseText;
   while ( cmSystemTools::GetLineFromStream(ilfs, line) )
     {
     licenseText += line + "\n";
     }
-  this->SetOptionIfNotSet("CPACK_RESOURCE_FILE_LICENSE_CONTENT", 
+  this->SetOptionIfNotSet("CPACK_RESOURCE_FILE_LICENSE_CONTENT",
                           licenseText.c_str());
 
   const char headerLengthTag[] = "###CPACK_HEADER_LENGTH###";
 
   // Create the header
   std::string inFile = this->GetOption("CPACK_STGZ_HEADER_FILE");
-  std::ifstream ifs(inFile.c_str());
+  cmsys::ifstream ifs(inFile.c_str());
   std::string packageHeaderText;
   while ( cmSystemTools::GetLineFromStream(ifs, line) )
     {
@@ -115,13 +123,13 @@ int cmCPackSTGZGenerator::GenerateHeader(std::ostream* os)
     ++ptr;
     }
   counter ++;
-  cmCPackLogger(cmCPackLog::LOG_DEBUG, 
+  cmCPackLogger(cmCPackLog::LOG_DEBUG,
                 "Number of lines: " << counter << std::endl);
   char buffer[1024];
   sprintf(buffer, "%d", counter);
   cmSystemTools::ReplaceString(res, headerLengthTag, buffer);
 
   // Write in file
-  *os << res.c_str();
+  *os << res;
   return this->Superclass::GenerateHeader(os);
 }

@@ -12,7 +12,6 @@
 #include "cmCTestStartCommand.h"
 
 #include "cmCTest.h"
-#include "cmLocalGenerator.h"
 #include "cmGlobalGenerator.h"
 #include "cmCTestVC.h"
 #include "cmGeneratedFileStream.h"
@@ -20,6 +19,7 @@
 cmCTestStartCommand::cmCTestStartCommand()
 {
   this->CreateNewTag = true;
+  this->Quiet = false;
 }
 
 bool cmCTestStartCommand
@@ -55,6 +55,14 @@ bool cmCTestStartCommand
       {
       cnt ++;
       this->CreateNewTag = false;
+      }
+    }
+  if (cnt < args.size())
+    {
+    if (args[cnt] == "QUIET")
+      {
+      cnt ++;
+      this->Quiet = true;
       }
     }
 
@@ -95,18 +103,20 @@ bool cmCTestStartCommand
 
   std::string sourceDir = cmSystemTools::CollapseFullPath(src_dir);
   std::string binaryDir = cmSystemTools::CollapseFullPath(bld_dir);
-  this->CTest->SetCTestConfiguration("SourceDirectory", sourceDir.c_str());
-  this->CTest->SetCTestConfiguration("BuildDirectory", binaryDir.c_str());
+  this->CTest->SetCTestConfiguration("SourceDirectory", sourceDir.c_str(),
+    this->Quiet);
+  this->CTest->SetCTestConfiguration("BuildDirectory", binaryDir.c_str(),
+    this->Quiet);
 
-  cmCTestLog(this->CTest, HANDLER_OUTPUT, "Run dashboard with model "
+  cmCTestOptionalLog(this->CTest, HANDLER_OUTPUT, "Run dashboard with model "
     << smodel << std::endl
     << "   Source directory: " << src_dir << std::endl
-    << "   Build directory: " << bld_dir << std::endl);
+    << "   Build directory: " << bld_dir << std::endl, this->Quiet);
   const char* track = this->CTest->GetSpecificTrack();
   if ( track )
     {
-    cmCTestLog(this->CTest, HANDLER_OUTPUT,
-      "   Track: " << track << std::endl);
+    cmCTestOptionalLog(this->CTest, HANDLER_OUTPUT,
+      "   Track: " << track << std::endl, this->Quiet);
     }
 
   // Log startup actions.
@@ -124,14 +134,14 @@ bool cmCTestStartCommand
     {
     return false;
     }
-  if(!cmSystemTools::FileIsDirectory(sourceDir.c_str()))
+  if(!cmSystemTools::FileIsDirectory(sourceDir))
     {
-    cmOStringStream e;
+    std::ostringstream e;
     e << "given source path\n"
       << "  " << sourceDir << "\n"
       << "which is not an existing directory.  "
       << "Set CTEST_CHECKOUT_COMMAND to a command line to create it.";
-    this->SetError(e.str().c_str());
+    this->SetError(e.str());
     return false;
     }
 
@@ -160,7 +170,7 @@ bool cmCTestStartCommand::InitialCheckout(
     {
     // Use a generic VC object to run and log the command.
     cmCTestVC vc(this->CTest, ofs);
-    vc.SetSourceDirectory(sourceDir.c_str());
+    vc.SetSourceDirectory(sourceDir);
     if(!vc.InitialCheckout(initialCheckoutCommand))
       {
       return false;

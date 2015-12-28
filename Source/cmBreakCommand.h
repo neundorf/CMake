@@ -25,7 +25,7 @@ public:
   /**
    * This is a virtual constructor for the command.
    */
-  virtual cmCommand* Clone() 
+  virtual cmCommand* Clone()
     {
     return new cmBreakCommand;
     }
@@ -40,31 +40,13 @@ public:
   /**
    * This determines if the command is invoked when in script mode.
    */
-  virtual bool IsScriptable() { return true; }
+  virtual bool IsScriptable() const { return true; }
 
   /**
    * The name of the command as specified in CMakeList.txt.
    */
-  virtual const char* GetName() {return "break";}
-  
-  /**
-   * Succinct documentation.
-   */
-  virtual const char* GetTerseDocumentation() 
-    {
-    return "Break from an enclosing foreach or while loop.";
-    }
-  
-  /**
-   * More documentation.
-   */
-  virtual const char* GetFullDocumentation()
-    {
-    return
-      "  break()\n"
-      "Breaks from an enclosing foreach loop or while loop";
-    }
-  
+  virtual std::string GetName() const {return "break";}
+
   cmTypeMacro(cmBreakCommand, cmCommand);
 };
 

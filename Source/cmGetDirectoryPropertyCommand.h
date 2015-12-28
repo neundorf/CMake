@@ -17,7 +17,7 @@
 class cmGetDirectoryPropertyCommand : public cmCommand
 {
 public:
-  virtual cmCommand* Clone() 
+  virtual cmCommand* Clone()
     {
       return new cmGetDirectoryPropertyCommand;
     }
@@ -32,47 +32,17 @@ public:
   /**
    * This determines if the command is invoked when in script mode.
    */
-  virtual bool IsScriptable() { return true; }
+  virtual bool IsScriptable() const { return true; }
 
   /**
    * The name of the command as specified in CMakeList.txt.
    */
-  virtual const char* GetName() { return "get_directory_property";}
+  virtual std::string GetName() const { return "get_directory_property";}
 
-  /**
-   * Succinct documentation.
-   */
-  virtual const char* GetTerseDocumentation() 
-    {
-    return "Get a property of DIRECTORY scope.";
-    }
-  
-  /**
-   * Longer documentation.
-   */
-  virtual const char* GetFullDocumentation()
-    {
-      return
-        "  get_directory_property(<variable> [DIRECTORY <dir>] <prop-name>)\n"
-        "Store a property of directory scope in the named variable.  "
-        "If the property is not defined the empty-string is returned.  "
-        "The DIRECTORY argument specifies another directory from which "
-        "to retrieve the property value.  "
-        "The specified directory must have already been traversed by "
-        "CMake."
-        "\n"
-        "  get_directory_property(<variable> [DIRECTORY <dir>]\n"
-        "                         DEFINITION <var-name>)\n"
-        "Get a variable definition from a directory.  "
-        "This form is useful to get a variable definition from another "
-        "directory."
-        "\n"
-        "See also the more general get_property() command.";
-    }
-  
   cmTypeMacro(cmGetDirectoryPropertyCommand, cmCommand);
+
+private:
+  void StoreResult(const std::string& variable, const char* prop);
 };
-
-
 
 #endif

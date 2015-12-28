@@ -13,8 +13,14 @@
 
 // Use a hash table to avoid duplicate file time checks from disk.
 #if defined(CMAKE_BUILD_WITH_CMAKE)
+#ifdef CMake_HAVE_CXX11_UNORDERED_MAP
+#include <unordered_map>
+#else
 # include <cmsys/hash_map.hxx>
 #endif
+#endif
+
+#include <cmsys/Encoding.hxx>
 
 // Use a platform-specific API to get file times efficiently.
 #if !defined(_WIN32) || defined(__CYGWIN__)
@@ -41,13 +47,21 @@ private:
   class HashString
     {
   public:
-    size_t operator()(const cmStdString& s) const
+    size_t operator()(const std::string& s) const
       {
       return h(s.c_str());
       }
+#ifdef CMake_HAVE_CXX11_UNORDERED_MAP
+    std::hash<const char*> h;
+#else
     cmsys::hash<const char*> h;
+#endif
     };
-  typedef cmsys::hash_map<cmStdString,
+#ifdef CMake_HAVE_CXX11_UNORDERED_MAP
+  typedef std::unordered_map<std::string,
+#else
+  typedef cmsys::hash_map<std::string,
+#endif
                           cmFileTimeComparison_Type, HashString> FileStatsMap;
   FileStatsMap Files;
 #endif
@@ -86,7 +100,8 @@ bool cmFileTimeComparisonInternal::Stat(const char* fname,
   // Windows version.  Get the modification time from extended file
   // attributes.
   WIN32_FILE_ATTRIBUTE_DATA fdata;
-  if(!GetFileAttributesEx(fname, GetFileExInfoStandard, &fdata))
+  if(!GetFileAttributesExW(cmsys::Encoding::ToWide(fname).c_str(),
+                           GetFileExInfoStandard, &fdata))
     {
     return false;
     }
@@ -116,7 +131,7 @@ cmFileTimeComparison::~cmFileTimeComparison()
 }
 
 //----------------------------------------------------------------------------
-bool cmFileTimeComparison::FileTimeCompare(const char* f1, 
+bool cmFileTimeComparison::FileTimeCompare(const char* f1,
                                            const char* f2, int* result)
 {
   return this->Internals->FileTimeCompare(f1, f2, result);
@@ -129,11 +144,11 @@ bool cmFileTimeComparison::FileTimesDiffer(const char* f1, const char* f2)
 }
 
 //----------------------------------------------------------------------------
-int cmFileTimeComparisonInternal::Compare(cmFileTimeComparison_Type* s1, 
+int cmFileTimeComparisonInternal::Compare(cmFileTimeComparison_Type* s1,
                                           cmFileTimeComparison_Type* s2)
 {
 #if !defined(_WIN32) || defined(__CYGWIN__)
-# if cmsys_STAT_HAS_ST_MTIM
+# if CMake_STAT_HAS_ST_MTIM
   // Compare using nanosecond resolution.
   if(s1->st_mtim.tv_sec < s2->st_mtim.tv_sec)
     {
@@ -148,6 +163,24 @@ int cmFileTimeComparisonInternal::Compare(cmFileTimeComparison_Type* s1,
     return -1;
     }
   else if(s1->st_mtim.tv_nsec > s2->st_mtim.tv_nsec)
+    {
+    return 1;
+    }
+# elif CMake_STAT_HAS_ST_MTIMESPEC
+  // Compare using nanosecond resolution.
+  if(s1->st_mtimespec.tv_sec < s2->st_mtimespec.tv_sec)
+    {
+    return -1;
+    }
+  else if(s1->st_mtimespec.tv_sec > s2->st_mtimespec.tv_sec)
+    {
+    return 1;
+    }
+  else if(s1->st_mtimespec.tv_nsec < s2->st_mtimespec.tv_nsec)
+    {
+    return -1;
+    }
+  else if(s1->st_mtimespec.tv_nsec > s2->st_mtimespec.tv_nsec)
     {
     return 1;
     }
@@ -175,11 +208,28 @@ bool cmFileTimeComparisonInternal::TimesDiffer(cmFileTimeComparison_Type* s1,
                                                cmFileTimeComparison_Type* s2)
 {
 #if !defined(_WIN32) || defined(__CYGWIN__)
-# if cmsys_STAT_HAS_ST_MTIM
+# if CMake_STAT_HAS_ST_MTIM
   // Times are integers in units of 1ns.
   long long bil = 1000000000;
   long long t1 = s1->st_mtim.tv_sec * bil + s1->st_mtim.tv_nsec;
   long long t2 = s2->st_mtim.tv_sec * bil + s2->st_mtim.tv_nsec;
+  if(t1 < t2)
+    {
+    return (t2 - t1) >= bil;
+    }
+  else if(t2 < t1)
+    {
+    return (t1 - t2) >= bil;
+    }
+  else
+    {
+    return false;
+    }
+# elif CMake_STAT_HAS_ST_MTIMESPEC
+  // Times are integers in units of 1ns.
+  long long bil = 1000000000;
+  long long t1 = s1->st_mtimespec.tv_sec * bil + s1->st_mtimespec.tv_nsec;
+  long long t2 = s2->st_mtimespec.tv_sec * bil + s2->st_mtimespec.tv_nsec;
   if(t1 < t2)
     {
     return (t2 - t1) >= bil;

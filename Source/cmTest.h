@@ -14,8 +14,8 @@
 
 #include "cmCustomCommand.h"
 #include "cmPropertyMap.h"
+#include "cmListFileCache.h"
 class cmMakefile;
-class cmListFileBacktrace;
 
 /** \class cmTest
  * \brief Represent a test
@@ -31,8 +31,8 @@ public:
   ~cmTest();
 
   ///! Set the test name
-  void SetName(const char* name);
-  const char* GetName() const { return this->Name.c_str(); }
+  void SetName(const std::string& name);
+  std::string GetName() const { return this->Name; }
 
   void SetCommand(std::vector<std::string> const& command);
   std::vector<std::string> const& GetCommand() const
@@ -40,23 +40,16 @@ public:
     return this->Command;
     }
 
-  /**
-   * Print the structure to std::cout.
-   */
-  void Print() const;
-
   ///! Set/Get a property of this source file
-  void SetProperty(const char *prop, const char *value);
-  void AppendProperty(const char* prop, const char* value,bool asString=false);
-  const char *GetProperty(const char *prop) const;
-  bool GetPropertyAsBool(const char *prop) const;
-  cmPropertyMap &GetProperties() { return this->Properties; };
-    
-  // Define the properties
-  static void DefineProperties(cmake *cm);
+  void SetProperty(const std::string& prop, const char *value);
+  void AppendProperty(const std::string& prop,
+                      const char* value,bool asString=false);
+  const char *GetProperty(const std::string& prop) const;
+  bool GetPropertyAsBool(const std::string& prop) const;
+  cmPropertyMap &GetProperties() { return this->Properties; }
 
   /** Get the cmMakefile instance that owns this test.  */
-  cmMakefile *GetMakefile() { return this->Makefile;};
+  cmMakefile *GetMakefile() { return this->Makefile;}
 
   /** Get the backtrace of the command that created this test.  */
   cmListFileBacktrace const& GetBacktrace() const;
@@ -67,13 +60,13 @@ public:
 
 private:
   cmPropertyMap Properties;
-  cmStdString Name;
+  std::string Name;
   std::vector<std::string> Command;
 
   bool OldStyle;
 
   cmMakefile* Makefile;
-  cmListFileBacktrace* Backtrace;
+  cmListFileBacktrace Backtrace;
 };
 
 #endif

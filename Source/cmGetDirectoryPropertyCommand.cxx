@@ -22,12 +22,11 @@ bool cmGetDirectoryPropertyCommand
     this->SetError("called with incorrect number of arguments");
     return false;
     }
-  
+
   std::vector<std::string>::const_iterator i = args.begin();
   std::string variable = *i;
   ++i;
-  std::string output = "";
-    
+
   // get the directory argument if there is one
   cmMakefile *dir = this->Makefile;
   if (*i == "DIRECTORY")
@@ -43,19 +42,17 @@ bool cmGetDirectoryPropertyCommand
     // make sure the start dir is a full path
     if (!cmSystemTools::FileIsFullPath(sd.c_str()))
       {
-      sd = this->Makefile->GetStartDirectory();
+      sd = this->Makefile->GetCurrentSourceDirectory();
       sd += "/";
       sd += *i;
       }
 
     // The local generators are associated with collapsed paths.
-    sd = cmSystemTools::CollapseFullPath(sd.c_str());
+    sd = cmSystemTools::CollapseFullPath(sd);
 
     // lookup the makefile from the directory name
-    cmLocalGenerator *lg = 
-      this->Makefile->GetLocalGenerator()->GetGlobalGenerator()->
-      FindLocalGenerator(sd.c_str());
-    if (!lg)
+    dir = this->Makefile->GetGlobalGenerator()->FindMakefile(sd);
+    if (!dir)
       {
       this->SetError
         ("DIRECTORY argument provided but requested directory not found. "
@@ -63,13 +60,12 @@ bool cmGetDirectoryPropertyCommand
          "it is valid but has not been processed yet.");
       return false;
       }
-    dir = lg->GetMakefile();
     ++i;
     }
 
   // OK, now we have the directory to process, we just get the requested
   // information out of it
-  
+
   if ( *i == "DEFINITION" )
     {
     ++i;
@@ -79,18 +75,45 @@ bool cmGetDirectoryPropertyCommand
                      "providing the name of the variable to get.");
       return false;
       }
-    output = dir->GetSafeDefinition(i->c_str());
-    this->Makefile->AddDefinition(variable.c_str(), output.c_str());
+    std::string output = dir->GetSafeDefinition(*i);
+    this->Makefile->AddDefinition(variable, output.c_str());
     return true;
     }
 
-  const char *prop = dir->GetProperty(i->c_str());
+  const char *prop = 0;
+  if (!i->empty())
+    {
+    if (*i == "DEFINITIONS")
+      {
+      switch(this->Makefile->GetPolicyStatus(cmPolicies::CMP0059))
+        {
+        case cmPolicies::WARN:
+          this->Makefile->IssueMessage(cmake::AUTHOR_WARNING,
+                           cmPolicies::GetPolicyWarning(cmPolicies::CMP0059));
+        case cmPolicies::OLD:
+          this->StoreResult(variable,
+                                   this->Makefile->GetDefineFlagsCMP0059());
+        return true;
+        case cmPolicies::NEW:
+        case cmPolicies::REQUIRED_ALWAYS:
+        case cmPolicies::REQUIRED_IF_USED:
+          break;
+        }
+      }
+    prop = dir->GetProperty(*i);
+    }
+  this->StoreResult(variable, prop);
+  return true;
+}
+
+void cmGetDirectoryPropertyCommand::StoreResult(std::string const& variable,
+                                                const char* prop)
+{
   if (prop)
     {
-    this->Makefile->AddDefinition(variable.c_str(), prop);
-    return true;
+    this->Makefile->AddDefinition(variable, prop);
+    return;
     }
-  this->Makefile->AddDefinition(variable.c_str(), "");
-  return true;
+  this->Makefile->AddDefinition(variable, "");
 }
 

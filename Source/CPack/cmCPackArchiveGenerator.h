@@ -31,9 +31,9 @@ public:
   /**
    * Construct generator
    */
-  cmCPackArchiveGenerator(cmArchiveWrite::Compress, cmArchiveWrite::Type);
+  cmCPackArchiveGenerator(cmArchiveWrite::Compress, std::string const& format);
   virtual ~cmCPackArchiveGenerator();
-  // Used to add a header to the archive 
+  // Used to add a header to the archive
   virtual int GenerateHeader(std::ostream* os);
   // component support
   virtual bool SupportsComponentInstallation() const;
@@ -68,7 +68,7 @@ protected:
   int PackageComponentsAllInOne();
   virtual const char* GetOutputExtension() = 0;
   cmArchiveWrite::Compress Compress;
-  cmArchiveWrite::Type Archive;
+  std::string ArchiveFormat;
   };
 
 #endif

@@ -13,57 +13,41 @@
 
 #include "cmMakefile.h"
 
+#include <cmsys/auto_ptr.hxx>
+
 //----------------------------------------------------------------------------
 cmCustomCommand::cmCustomCommand()
+  : Backtrace()
 {
   this->HaveComment = false;
   this->EscapeOldStyle = true;
   this->EscapeAllowMakeVars = false;
+  this->UsesTerminal = false;
 }
 
 //----------------------------------------------------------------------------
-cmCustomCommand::cmCustomCommand(const cmCustomCommand& r):
-  Outputs(r.Outputs),
-  Depends(r.Depends),
-  CommandLines(r.CommandLines),
-  HaveComment(r.HaveComment),
-  Comment(r.Comment),
-  WorkingDirectory(r.WorkingDirectory),
-  EscapeAllowMakeVars(r.EscapeAllowMakeVars),
-  EscapeOldStyle(r.EscapeOldStyle),
-  Backtrace(new cmListFileBacktrace(*r.Backtrace))
-{
-}
-
-//----------------------------------------------------------------------------
-cmCustomCommand::cmCustomCommand(cmMakefile* mf,
+cmCustomCommand::cmCustomCommand(cmMakefile const* mf,
                                  const std::vector<std::string>& outputs,
+                                 const std::vector<std::string>& byproducts,
                                  const std::vector<std::string>& depends,
                                  const cmCustomCommandLines& commandLines,
                                  const char* comment,
                                  const char* workingDirectory):
   Outputs(outputs),
+  Byproducts(byproducts),
   Depends(depends),
   CommandLines(commandLines),
-  HaveComment(comment?true:false),
+  Backtrace(),
   Comment(comment?comment:""),
   WorkingDirectory(workingDirectory?workingDirectory:""),
+  HaveComment(comment?true:false),
   EscapeAllowMakeVars(false),
-  EscapeOldStyle(true),
-  Backtrace(new cmListFileBacktrace)
+  EscapeOldStyle(true)
 {
-  this->EscapeOldStyle = true;
-  this->EscapeAllowMakeVars = false;
   if(mf)
     {
-    mf->GetBacktrace(*this->Backtrace);
+    this->Backtrace = mf->GetBacktrace();
     }
-}
-
-//----------------------------------------------------------------------------
-cmCustomCommand::~cmCustomCommand()
-{
-  delete this->Backtrace;
 }
 
 //----------------------------------------------------------------------------
@@ -73,13 +57,9 @@ const std::vector<std::string>& cmCustomCommand::GetOutputs() const
 }
 
 //----------------------------------------------------------------------------
-const char* cmCustomCommand::GetWorkingDirectory() const
+const std::vector<std::string>& cmCustomCommand::GetByproducts() const
 {
-  if(this->WorkingDirectory.size() == 0)
-    {
-    return 0;
-    }
-  return this->WorkingDirectory.c_str();
+  return this->Byproducts;
 }
 
 //----------------------------------------------------------------------------
@@ -104,21 +84,14 @@ const char* cmCustomCommand::GetComment() const
 //----------------------------------------------------------------------------
 void cmCustomCommand::AppendCommands(const cmCustomCommandLines& commandLines)
 {
-  for(cmCustomCommandLines::const_iterator i=commandLines.begin();
-      i != commandLines.end(); ++i)
-    {
-    this->CommandLines.push_back(*i);
-    }
+  this->CommandLines.insert(this->CommandLines.end(),
+                            commandLines.begin(), commandLines.end());
 }
 
 //----------------------------------------------------------------------------
 void cmCustomCommand::AppendDepends(const std::vector<std::string>& depends)
 {
-  for(std::vector<std::string>::const_iterator i=depends.begin();
-      i != depends.end(); ++i)
-    {
-    this->Depends.push_back(*i);
-    }
+  this->Depends.insert(this->Depends.end(), depends.begin(), depends.end());
 }
 
 //----------------------------------------------------------------------------
@@ -148,7 +121,7 @@ void cmCustomCommand::SetEscapeAllowMakeVars(bool b)
 //----------------------------------------------------------------------------
 cmListFileBacktrace const& cmCustomCommand::GetBacktrace() const
 {
-  return *this->Backtrace;
+  return this->Backtrace;
 }
 
 //----------------------------------------------------------------------------
@@ -169,4 +142,16 @@ void cmCustomCommand::AppendImplicitDepends(ImplicitDependsList const& l)
 {
   this->ImplicitDepends.insert(this->ImplicitDepends.end(),
                                l.begin(), l.end());
+}
+
+//----------------------------------------------------------------------------
+bool cmCustomCommand::GetUsesTerminal() const
+{
+  return this->UsesTerminal;
+}
+
+//----------------------------------------------------------------------------
+void cmCustomCommand::SetUsesTerminal(bool b)
+{
+  this->UsesTerminal = b;
 }

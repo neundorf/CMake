@@ -25,11 +25,11 @@ class cmCTestReadCustomFilesCommand : public cmCTestCommand
 public:
 
   cmCTestReadCustomFilesCommand() {}
-  
+
   /**
    * This is a virtual constructor for the command.
    */
-  virtual cmCommand* Clone() 
+  virtual cmCommand* Clone()
     {
     cmCTestReadCustomFilesCommand* ni = new cmCTestReadCustomFilesCommand;
     ni->CTest = this->CTest;
@@ -46,26 +46,7 @@ public:
   /**
    * The name of the command as specified in CMakeList.txt.
    */
-  virtual const char* GetName() { return "ctest_read_custom_files";}
-
-  /**
-   * Succinct documentation.
-   */
-  virtual const char* GetTerseDocumentation() 
-    {
-    return "read CTestCustom files.";
-    }
-  
-  /**
-   * More documentation.
-   */
-  virtual const char* GetFullDocumentation()
-    {
-    return
-      "  ctest_read_custom_files( directory ... )\n"
-      "Read all the CTestCustom.ctest or CTestCustom.cmake files from "
-      "the given directory.";
-    }
+  virtual std::string GetName() const { return "ctest_read_custom_files";}
 
   cmTypeMacro(cmCTestReadCustomFilesCommand, cmCTestCommand);
 

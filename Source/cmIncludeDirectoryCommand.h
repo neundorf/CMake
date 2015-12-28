@@ -26,7 +26,7 @@ public:
   /**
    * This is a virtual constructor for the command.
    */
-  virtual cmCommand* Clone() 
+  virtual cmCommand* Clone()
     {
     return new cmIncludeDirectoryCommand;
     }
@@ -41,39 +41,14 @@ public:
   /**
    * The name of the command as specified in CMakeList.txt.
    */
-  virtual const char* GetName() { return "include_directories";}
+  virtual std::string GetName() const { return "include_directories";}
 
-  /**
-   * Succinct documentation.
-   */
-  virtual const char* GetTerseDocumentation() 
-    {
-    return "Add include directories to the build.";
-    }
-  
-  /**
-   * More documentation.
-   */
-  virtual const char* GetFullDocumentation()
-    {
-    return
-      "  include_directories([AFTER|BEFORE] [SYSTEM] dir1 dir2 ...)\n"
-      "Add the given directories to those searched by the compiler for "
-      "include files. By default the directories are appended onto "
-      "the current list of directories. This default behavior can be "
-      "changed by setting CMAKE_INCLUDE_DIRECTORIES_BEFORE to ON. "
-      "By using BEFORE or AFTER you can select between appending and "
-      "prepending, independent from the default. "
-      "If the SYSTEM option is given the compiler will be told that the "
-      "directories are meant as system include directories on some "
-      "platforms.";
-    }
-  
   cmTypeMacro(cmIncludeDirectoryCommand, cmCommand);
 
 protected:
   // used internally
-  void AddDirectory(const char *arg, bool before, bool system);
+  void GetIncludes(const std::string &arg, std::vector<std::string> &incs);
+  void NormalizeInclude(std::string &inc);
 };
 
 

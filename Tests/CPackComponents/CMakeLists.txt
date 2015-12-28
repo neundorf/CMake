@@ -36,7 +36,7 @@ endif()
 # Create installation targets. Note that we put each kind of file
 # into a different component via COMPONENT. These components will
 # be used to create the installation components.
-install(TARGETS mylib 
+install(TARGETS mylib
   ARCHIVE
   DESTINATION lib
   COMPONENT libraries)
@@ -72,7 +72,7 @@ set(CPACK_PACKAGE_INSTALL_DIRECTORY "CPack Component Example")
 set(CPACK_NSIS_MENU_LINKS
   "ftp://ftpserver" "Test Ftp Link"
   "ftps://ftpsserver" "Test Ftps Link"
-  "http://www.cmake.org" "CMake Web Site"
+  "https://cmake.org" "CMake Web Site"
   "https://github.com/" "Test Https Link"
   "mailto:kitware@kitware.com" "Test MailTo Link"
   "news://newsserver" "Test News Link"

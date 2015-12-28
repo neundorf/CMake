@@ -33,14 +33,16 @@ public:
     return new cmExtraEclipseCDT4Generator;
   }
 
-  virtual const char* GetName() const {
+  virtual std::string GetName() const {
     return cmExtraEclipseCDT4Generator::GetActualName();
   }
 
-  static const char* GetActualName() { return "Eclipse CDT4"; }
+  static std::string GetActualName() { return "Eclipse CDT4"; }
 
   virtual void GetDocumentation(cmDocumentationEntry& entry,
-                                const char*           fullName) const;
+                                const std::string&    fullName) const;
+  virtual void EnableLanguage(std::vector<std::string> const& languages,
+                              cmMakefile *, bool optional);
 
   virtual void Generate();
 
@@ -93,28 +95,27 @@ private:
                                     const std::string&     path,
                                     LinkType linkType);
 
-  bool AppendOutLinkedResource(cmGeneratedFileStream& fout,
-                               const std::string&     defname,
-                               const std::string&     altdefname);
-
   static void AppendIncludeDirectories(cmGeneratedFileStream& fout,
                                    const std::vector<std::string>& includeDirs,
                                    std::set<std::string>& emittedDirs);
 
   static void AddEnvVar(cmGeneratedFileStream& fout, const char* envVar,
-                        cmMakefile* mf);
+                        cmLocalGenerator* lg);
 
   void CreateLinksToSubprojects(cmGeneratedFileStream& fout,
                                 const std::string& baseDir);
   void CreateLinksForTargets(cmGeneratedFileStream& fout);
 
   std::vector<std::string> SrcLinkedResources;
-  std::vector<std::string> OutLinkedResources;
+  std::set<std::string> Natures;
   std::string HomeDirectory;
   std::string HomeOutputDirectory;
   bool IsOutOfSourceBuild;
   bool GenerateSourceProject;
+  bool GenerateLinkedResources;
   bool SupportsVirtualFolders;
+  bool SupportsGmakeErrorParser;
+  bool SupportsMachO64Parser;
 
 };
 

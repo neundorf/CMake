@@ -42,7 +42,7 @@ public:
    * Get the output variable
    */
   const char* GetOutput();
-  
+
   cmCTestBuildAndTestHandler();
 
   virtual void Initialize();
@@ -50,13 +50,15 @@ public:
 protected:
   ///! Run CMake and build a test and then run it as a single test.
   int RunCMakeAndTest(std::string* output);
-  int RunCMake(std::string* outstring, cmOStringStream &out, 
+  int RunCMake(std::string* outstring, std::ostringstream &out,
                std::string &cmakeOutString,
                std::string &cwd, cmake *cm);
-  
-  cmStdString  Output;
+
+  std::string  Output;
 
   std::string              BuildGenerator;
+  std::string              BuildGeneratorPlatform;
+  std::string              BuildGeneratorToolset;
   std::vector<std::string> BuildOptions;
   bool                     BuildTwoConfig;
   std::string              BuildMakeProgram;

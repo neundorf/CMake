@@ -13,12 +13,14 @@
 #define cmLocalVisualStudioGenerator_h
 
 #include "cmLocalGenerator.h"
+#include "cmGlobalVisualStudioGenerator.h"
 
 #include <cmsys/auto_ptr.hxx>
 
 class cmSourceFile;
 class cmSourceGroup;
 class cmCustomCommand;
+class cmCustomCommandGenerator;
 
 /** \class cmLocalVisualStudioGenerator
  * \brief Base class for Visual Studio generators.
@@ -29,32 +31,27 @@ class cmCustomCommand;
 class cmLocalVisualStudioGenerator : public cmLocalGenerator
 {
 public:
-  /** Known versions of Visual Studio.  */
-  enum VSVersion
-  {
-    VS6 = 60,
-    VS7 = 70,
-    VS71 = 71,
-    VS8 = 80,
-    VS9 = 90,
-    VS10 = 100,
-    VS11 = 110
-  };
-
-  cmLocalVisualStudioGenerator(VSVersion v);
+  cmLocalVisualStudioGenerator(cmGlobalGenerator* gg, cmMakefile* mf);
   virtual ~cmLocalVisualStudioGenerator();
 
   /** Construct a script from the given list of command lines.  */
-  std::string ConstructScript(cmCustomCommand const& cc,
-                              const char* configName,
-                              const char* newline = "\n");
+  std::string ConstructScript(cmCustomCommandGenerator const& ccg,
+                              const std::string& newline = "\n");
 
   /** Label to which to jump in a batch file after a failed step in a
       sequence of custom commands. */
   const char* GetReportErrorLabel() const;
 
-  /** Version of Visual Studio.  */
-  VSVersion GetVersion() const { return this->Version; }
+  cmGlobalVisualStudioGenerator::VSVersion GetVersion() const;
+
+  virtual std::string
+  ComputeLongestObjectDirectory(cmGeneratorTarget const*) const = 0;
+
+  virtual void AddCMakeListsRules() = 0;
+
+  virtual void ComputeObjectFilenames(
+                        std::map<cmSourceFile const*, std::string>& mapping,
+                        cmGeneratorTarget const* = 0);
 
 protected:
   virtual const char* ReportErrorLabel() const;
@@ -62,19 +59,9 @@ protected:
 
   /** Construct a custom command to make exe import lib dir.  */
   cmsys::auto_ptr<cmCustomCommand>
-  MaybeCreateImplibDir(cmTarget& target, const char* config, bool isFortran);
-
-  // Safe object file name generation.
-  void ComputeObjectNameRequirements(std::vector<cmSourceGroup> const&);
-  bool SourceFileCompiles(const cmSourceFile* sf);
-  void CountObjectNames(const std::vector<cmSourceGroup>& groups,
-                        std::map<cmStdString, int>& count);
-  void InsertNeedObjectNames(const std::vector<cmSourceGroup>& groups,
-                             std::map<cmStdString, int>& count);
-  std::set<const cmSourceFile*> NeedObjectName;
-  friend class cmVisualStudio10TargetGenerator;
-
-  VSVersion Version;
+  MaybeCreateImplibDir(cmGeneratorTarget *target,
+                       const std::string& config,
+                       bool isFortran);
 };
 
 #endif

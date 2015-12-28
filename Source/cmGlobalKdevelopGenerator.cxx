@@ -21,44 +21,37 @@
 
 #include <cmsys/SystemTools.hxx>
 #include <cmsys/Directory.hxx>
+#include <cmsys/FStream.hxx>
 
 //----------------------------------------------------------------------------
 void cmGlobalKdevelopGenerator
-::GetDocumentation(cmDocumentationEntry& entry, const char*) const
+::GetDocumentation(cmDocumentationEntry& entry, const std::string&) const
 {
   entry.Name = this->GetName();
   entry.Brief = "Generates KDevelop 3 project files.";
-  entry.Full =
-    "Project files for KDevelop 3 will be created in the top directory "
-    "and in every subdirectory which features a CMakeLists.txt file "
-    "containing a PROJECT() call. "
-    "If you change the settings using KDevelop cmake will try its best "
-    "to keep your changes when regenerating the project files. "
-    "Additionally a hierarchy of UNIX makefiles is generated into the "
-    "build tree.  Any "
-    "standard UNIX-style make program can build the project through the "
-    "default make target.  A \"make install\" target is also provided.";
 }
 
 cmGlobalKdevelopGenerator::cmGlobalKdevelopGenerator()
 :cmExternalMakefileProjectGenerator()
 {
   this->SupportedGlobalGenerators.push_back("Unix Makefiles");
+#ifdef CMAKE_USE_NINJA
+  this->SupportedGlobalGenerators.push_back("Ninja");
+#endif
 }
 
 void cmGlobalKdevelopGenerator::Generate()
 {
-  // for each sub project in the project create 
+  // for each sub project in the project create
   // a kdevelop project
-  for (std::map<cmStdString, std::vector<cmLocalGenerator*> >::const_iterator 
-       it = this->GlobalGenerator->GetProjectMap().begin(); 
-      it!= this->GlobalGenerator->GetProjectMap().end(); 
+  for (std::map<std::string, std::vector<cmLocalGenerator*> >::const_iterator
+       it = this->GlobalGenerator->GetProjectMap().begin();
+      it!= this->GlobalGenerator->GetProjectMap().end();
       ++it)
     {
-    cmMakefile* mf = it->second[0]->GetMakefile();
-    std::string outputDir=mf->GetStartOutputDirectory();
-    std::string projectDir=mf->GetHomeDirectory();
-    std::string projectName=mf->GetProjectName();
+    std::string outputDir=it->second[0]->GetCurrentBinaryDirectory();
+    std::string projectDir=it->second[0]->GetSourceDirectory();
+    std::string projectName=it->second[0]->GetProjectName();
     std::string cmakeFilePattern("CMakeLists.txt;*.cmake;");
     std::string fileToOpen;
     const std::vector<cmLocalGenerator*>& lgs= it->second;
@@ -75,14 +68,14 @@ void cmGlobalKdevelopGenerator::Generate()
     for (std::vector<cmLocalGenerator*>::const_iterator lg=lgs.begin();
          lg!=lgs.end(); lg++)
       {
-      cmMakefile* makefile=(*lg)->GetMakefile();
-      cmTargets& targets=makefile->GetTargets();
-      for (cmTargets::iterator ti = targets.begin();
-           ti != targets.end(); ti++)
+      std::vector<cmGeneratorTarget*> const& targets =
+          (*lg)->GetGeneratorTargets();
+      for (std::vector<cmGeneratorTarget*>::const_iterator ti =
+           targets.begin(); ti != targets.end(); ti++)
         {
-        if (ti->second.GetType()==cmTarget::EXECUTABLE)
+        if ((*ti)->GetType()==cmState::EXECUTABLE)
           {
-          executable = ti->second.GetProperty("LOCATION");
+          executable = (*ti)->GetLocation("");
           break;
           }
         }
@@ -91,7 +84,7 @@ void cmGlobalKdevelopGenerator::Generate()
         break;
         }
       }
-      
+
     // now create a project file
     this->CreateProjectFile(outputDir, projectDir, projectName,
                             executable, cmakeFilePattern, fileToOpen);
@@ -100,7 +93,7 @@ void cmGlobalKdevelopGenerator::Generate()
 
 bool cmGlobalKdevelopGenerator
 ::CreateFilelistFile(const std::vector<cmLocalGenerator*>& lgs,
-                     const std::string& outputDir, 
+                     const std::string& outputDir,
                      const std::string& projectDirIn,
                      const std::string& projectname,
                      std::string& cmakeFilePattern,
@@ -109,27 +102,30 @@ bool cmGlobalKdevelopGenerator
   std::string projectDir = projectDirIn + "/";
   std::string filename = outputDir+ "/" + projectname +".kdevelop.filelist";
 
-  std::set<cmStdString> files;
+  std::set<std::string> files;
   std::string tmp;
 
-  for (std::vector<cmLocalGenerator*>::const_iterator it=lgs.begin(); 
+  std::vector<std::string> hdrExts =
+      this->GlobalGenerator->GetCMakeInstance()->GetHeaderExtensions();
+
+  for (std::vector<cmLocalGenerator*>::const_iterator it=lgs.begin();
        it!=lgs.end(); it++)
     {
     cmMakefile* makefile=(*it)->GetMakefile();
     const std::vector<std::string>& listFiles=makefile->GetListFiles();
-    for (std::vector<std::string>::const_iterator lt=listFiles.begin(); 
+    for (std::vector<std::string>::const_iterator lt=listFiles.begin();
          lt!=listFiles.end(); lt++)
       {
       tmp=*lt;
       cmSystemTools::ReplaceString(tmp, projectDir.c_str(), "");
       // make sure the file is part of this source tree
-      if ((tmp[0]!='/') && 
-          (strstr(tmp.c_str(), 
+      if ((tmp[0]!='/') &&
+          (strstr(tmp.c_str(),
                   cmake::GetCMakeFilesDirectoryPostSlash())==0))
         {
         files.insert(tmp);
         tmp=cmSystemTools::GetFilenameName(tmp);
-        //add all files which dont match the default 
+        //add all files which dont match the default
         // */CMakeLists.txt;*cmake; to the file pattern
         if ((tmp!="CMakeLists.txt")
             && (strstr(tmp.c_str(), ".cmake")==0))
@@ -138,13 +134,16 @@ bool cmGlobalKdevelopGenerator
           }
         }
       }
-  
+
     //get all sources
-    cmTargets& targets=makefile->GetTargets();
-    for (cmTargets::iterator ti = targets.begin();
+    std::vector<cmGeneratorTarget*> targets=(*it)->GetGeneratorTargets();
+    for (std::vector<cmGeneratorTarget*>::iterator ti = targets.begin();
          ti != targets.end(); ti++)
       {
-      const std::vector<cmSourceFile*>& sources=ti->second.GetSourceFiles();
+      std::vector<cmSourceFile*> sources;
+      cmGeneratorTarget* gt = *ti;
+      gt->GetSourceFiles(sources, gt->Target->GetMakefile()
+                                    ->GetSafeDefinition("CMAKE_BUILD_TYPE"));
       for (std::vector<cmSourceFile*>::const_iterator si=sources.begin();
            si!=sources.end(); si++)
         {
@@ -155,8 +154,8 @@ bool cmGlobalKdevelopGenerator
 
         cmSystemTools::ReplaceString(tmp, projectDir.c_str(), "");
 
-        if ((tmp[0]!='/')  && 
-            (strstr(tmp.c_str(), 
+        if ((tmp[0]!='/')  &&
+            (strstr(tmp.c_str(),
                   cmake::GetCMakeFilesDirectoryPostSlash())==0) &&
            (cmSystemTools::GetFilenameExtension(tmp)!=".moc"))
           {
@@ -164,8 +163,7 @@ bool cmGlobalKdevelopGenerator
 
           // check if there's a matching header around
           for(std::vector<std::string>::const_iterator
-                ext = makefile->GetHeaderExtensions().begin();
-              ext !=  makefile->GetHeaderExtensions().end(); ++ext)
+                ext = hdrExts.begin(); ext != hdrExts.end(); ++ext)
             {
             std::string hname=headerBasename;
             hname += ".";
@@ -184,11 +182,11 @@ bool cmGlobalKdevelopGenerator
         {
         tmp=*lt;
         cmSystemTools::ReplaceString(tmp, projectDir.c_str(), "");
-        if ((tmp[0]!='/') && 
-            (strstr(tmp.c_str(), 
+        if ((tmp[0]!='/') &&
+            (strstr(tmp.c_str(),
                     cmake::GetCMakeFilesDirectoryPostSlash())==0))
           {
-          files.insert(tmp.c_str());
+          files.insert(tmp);
           }
         }
       }
@@ -196,7 +194,7 @@ bool cmGlobalKdevelopGenerator
 
   //check if the output file already exists and read it
   //insert all files which exist into the set of files
-  std::ifstream oldFilelist(filename.c_str());
+  cmsys::ifstream oldFilelist(filename.c_str());
   if (oldFilelist)
     {
     while (cmSystemTools::GetLineFromStream(oldFilelist, tmp))
@@ -220,13 +218,13 @@ bool cmGlobalKdevelopGenerator
     {
     return false;
     }
-   
+
   fileToOpen="";
-  for (std::set<cmStdString>::const_iterator it=files.begin(); 
+  for (std::set<std::string>::const_iterator it=files.begin();
        it!=files.end(); it++)
     {
     // get the full path to the file
-    tmp=cmSystemTools::CollapseFullPath(it->c_str(), projectDir.c_str());
+    tmp=cmSystemTools::CollapseFullPath(*it, projectDir.c_str());
     // just select the first source file
     if (fileToOpen.empty())
     {
@@ -240,7 +238,7 @@ bool cmGlobalKdevelopGenerator
     // make it relative to the project dir
     cmSystemTools::ReplaceString(tmp, projectDir.c_str(), "");
     // only put relative paths
-    if (tmp.size() && tmp[0] != '/')
+    if (!tmp.empty() && tmp[0] != '/')
       {
       fout << tmp.c_str() <<"\n";
       }
@@ -254,7 +252,7 @@ existing one, otherwise create a new one */
 void cmGlobalKdevelopGenerator
 ::CreateProjectFile(const std::string& outputDir,
                     const std::string& projectDir,
-                    const std::string& projectname, 
+                    const std::string& projectname,
                     const std::string& executable,
                     const std::string& cmakeFilePattern,
                     const std::string& fileToOpen)
@@ -268,17 +266,17 @@ void cmGlobalKdevelopGenerator
 
   if (cmSystemTools::FileExists(filename.c_str()))
     {
-    this->MergeProjectFiles(outputDir, projectDir, filename, 
-                            executable, cmakeFilePattern, 
+    this->MergeProjectFiles(outputDir, projectDir, filename,
+                            executable, cmakeFilePattern,
                             fileToOpen, sessionFilename);
     }
   else
     {
-    // add all subdirectories which are cmake build directories to the 
+    // add all subdirectories which are cmake build directories to the
     // kdevelop blacklist so they are not monitored for added or removed files
     // since this is handled by adding files to the cmake files
     cmsys::Directory d;
-    if (d.Load(projectDir.c_str()))
+    if (d.Load(projectDir))
       {
       size_t numf = d.GetNumberOfFiles();
       for (unsigned int i = 0; i < numf; i++)
@@ -289,10 +287,10 @@ void cmGlobalKdevelopGenerator
           std::string tmp = projectDir;
           tmp += "/";
           tmp += nextFile;
-          if (cmSystemTools::FileIsDirectory(tmp.c_str()))
+          if (cmSystemTools::FileIsDirectory(tmp))
             {
             tmp += "/CMakeCache.txt";
-            if ((nextFile == "CMakeFiles") 
+            if ((nextFile == "CMakeFiles")
                 || (cmSystemTools::FileExists(tmp.c_str())))
               {
               this->Blacklist.push_back(nextFile);
@@ -302,26 +300,26 @@ void cmGlobalKdevelopGenerator
         }
       }
     this->CreateNewProjectFile(outputDir, projectDir, filename,
-                               executable, cmakeFilePattern, 
+                               executable, cmakeFilePattern,
                                fileToOpen, sessionFilename);
     }
 
 }
 
 void cmGlobalKdevelopGenerator
-::MergeProjectFiles(const std::string& outputDir, 
-                    const std::string& projectDir, 
-                    const std::string& filename, 
-                    const std::string& executable, 
+::MergeProjectFiles(const std::string& outputDir,
+                    const std::string& projectDir,
+                    const std::string& filename,
+                    const std::string& executable,
                     const std::string& cmakeFilePattern,
                     const std::string& fileToOpen,
                     const std::string& sessionFilename)
 {
-  std::ifstream oldProjectFile(filename.c_str());
+  cmsys::ifstream oldProjectFile(filename.c_str());
   if (!oldProjectFile)
     {
-    this->CreateNewProjectFile(outputDir, projectDir, filename, 
-                               executable, cmakeFilePattern, 
+    this->CreateNewProjectFile(outputDir, projectDir, filename,
+                               executable, cmakeFilePattern,
                                fileToOpen, sessionFilename);
     return;
     }
@@ -343,7 +341,7 @@ void cmGlobalKdevelopGenerator
     return;
     }
 
-  for (std::vector<std::string>::const_iterator it=lines.begin(); 
+  for (std::vector<std::string>::const_iterator it=lines.begin();
        it!=lines.end(); it++)
     {
     const char* line=(*it).c_str();
@@ -365,7 +363,7 @@ void cmGlobalKdevelopGenerator
     if (strstr(line, "<general>"))
       {
       fout<< "  <projectmanagement>KDevCustomProject</projectmanagement>\n";
-      fout<< "  <projectdirectory>" <<projectDir.c_str() 
+      fout<< "  <projectdirectory>" <<projectDir
           << "</projectdirectory>\n";   //this one is important
       fout<<"  <absoluteprojectpath>true</absoluteprojectpath>\n";
       //and this one
@@ -373,14 +371,14 @@ void cmGlobalKdevelopGenerator
     // inside kdevcustomproject the <filelistdirectory> must be put
     if (strstr(line, "<kdevcustomproject>"))
       {
-      fout<<"    <filelistdirectory>"<<outputDir.c_str()
+      fout<<"    <filelistdirectory>"<<outputDir
           <<"</filelistdirectory>\n";
       }
     // buildtool and builddir go inside <build>
     if (strstr(line, "<build>"))
       {
       fout<<"      <buildtool>make</buildtool>\n";
-      fout<<"      <builddir>"<<outputDir.c_str()<<"</builddir>\n";
+      fout<<"      <builddir>"<<outputDir<<"</builddir>\n";
       }
     }
 }
@@ -404,7 +402,7 @@ void cmGlobalKdevelopGenerator
   bool hasSvn = cmSystemTools::FileExists((projectDir + "/.svn").c_str());
   bool hasCvs = cmSystemTools::FileExists((projectDir + "/CVS").c_str());
 
-  bool enableCxx = (this->GlobalGenerator->GetLanguageEnabled("C") 
+  bool enableCxx = (this->GlobalGenerator->GetLanguageEnabled("C")
                           || this->GlobalGenerator->GetLanguageEnabled("CXX"));
   bool enableFortran = this->GlobalGenerator->GetLanguageEnabled("Fortran");
   std::string primaryLanguage = "C++";
@@ -422,7 +420,7 @@ void cmGlobalKdevelopGenerator
         "  <projectmanagement>KDevCustomProject</projectmanagement>\n"
         "  <primarylanguage>" << primaryLanguage << "</primarylanguage>\n"
         "  <ignoreparts/>\n"
-        "  <projectdirectory>" << projectDir.c_str() << 
+        "  <projectdirectory>" << projectDir <<
         "</projectdirectory>\n";   //this one is important
   fout<<"  <absoluteprojectpath>true</absoluteprojectpath>\n"; //and this one
 
@@ -449,12 +447,12 @@ void cmGlobalKdevelopGenerator
 
   fout<<"  </general>\n"
         "  <kdevcustomproject>\n"
-        "    <filelistdirectory>" << outputDir.c_str() <<
+        "    <filelistdirectory>" << outputDir <<
         "</filelistdirectory>\n"
         "    <run>\n"
-        "      <mainprogram>" << executable.c_str() << "</mainprogram>\n"
+        "      <mainprogram>" << executable << "</mainprogram>\n"
         "      <directoryradio>custom</directoryradio>\n"
-        "      <customdirectory>"<<outputDir.c_str()<<"</customdirectory>\n"
+        "      <customdirectory>"<<outputDir<<"</customdirectory>\n"
         "      <programargs></programargs>\n"
         "      <terminal>false</terminal>\n"
         "      <autocompile>true</autocompile>\n"
@@ -462,14 +460,14 @@ void cmGlobalKdevelopGenerator
         "    </run>\n"
         "    <build>\n"
         "      <buildtool>make</buildtool>\n"; //this one is important
-  fout<<"      <builddir>"<<outputDir.c_str()<<"</builddir>\n";  //and this one
+  fout<<"      <builddir>"<<outputDir<<"</builddir>\n";  //and this one
   fout<<"    </build>\n"
         "    <make>\n"
         "      <abortonerror>false</abortonerror>\n"
         "      <numberofjobs>1</numberofjobs>\n"
         "      <dontact>false</dontact>\n"
         "      <makebin>" << this->GlobalGenerator->GetLocalGenerators()[0]->
-            GetMakefile()->GetRequiredDefinition("CMAKE_BUILD_TOOL") 
+            GetMakefile()->GetRequiredDefinition("CMAKE_MAKE_PROGRAM")
             << " </makebin>\n"
         "      <selectedenvironment>default</selectedenvironment>\n"
         "      <environments>\n"
@@ -485,7 +483,7 @@ void cmGlobalKdevelopGenerator
       dirIt != this->Blacklist.end();
       ++dirIt)
     {
-    fout<<"      <path>" << dirIt->c_str() << "</path>\n";
+    fout<<"      <path>" << *dirIt << "</path>\n";
     }
   fout<<"    </blacklist>\n";
 
@@ -563,7 +561,7 @@ void cmGlobalKdevelopGenerator
   // command
   fout<<"  <kdevfileview>\n"
         "    <groups>\n"
-        "      <group pattern=\"" << cmakeFilePattern.c_str() <<
+        "      <group pattern=\"" << cmakeFilePattern <<
         "\" name=\"CMake\" />\n";
 
   if (enableCxx)
@@ -606,7 +604,7 @@ void cmGlobalKdevelopGenerator
           "<!DOCTYPE KDevPrjSession>\n"
           "<KDevPrjSession>\n"
           " <DocsAndViews NumberOfDocuments=\"1\" >\n"
-          "  <Doc0 NumberOfViews=\"1\" URL=\"file://" << fileToOpen.c_str() <<
+          "  <Doc0 NumberOfViews=\"1\" URL=\"file://" << fileToOpen <<
           "\" >\n"
           "   <View0 line=\"0\" Type=\"Source\" />\n"
           "  </Doc0>\n"

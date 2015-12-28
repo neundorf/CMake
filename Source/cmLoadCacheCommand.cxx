@@ -12,6 +12,7 @@
 #include "cmLoadCacheCommand.h"
 
 #include <cmsys/RegularExpression.hxx>
+#include <cmsys/FStream.hxx>
 
 // cmLoadCacheCommand
 bool cmLoadCacheCommand
@@ -26,13 +27,13 @@ bool cmLoadCacheCommand
     {
     return this->ReadWithPrefix(args);
     }
-  
+
   // Cache entries to be excluded from the import list.
   // If this set is empty, all cache entries are brought in
   // and they can not be overridden.
   bool excludeFiles=false;
   unsigned int i;
-  std::set<cmStdString> excludes;
+  std::set<std::string> excludes;
 
   for(i=0; i<args.size(); i++)
     {
@@ -54,7 +55,7 @@ bool cmLoadCacheCommand
   // If this set is empty, no internal cache entries are
   // brought in.
   bool includeFiles=false;
-  std::set<cmStdString> includes;
+  std::set<std::string> includes;
 
   for(i=0; i<args.size(); i++)
     {
@@ -80,8 +81,8 @@ bool cmLoadCacheCommand
       {
       break;
       }
-    this->Makefile->GetCacheManager()->LoadCache(args[i].c_str(), false,
-                                             excludes, includes);
+    this->Makefile->GetCMakeInstance()->LoadCache(args[i], false,
+                                                  excludes, includes);
     }
 
 
@@ -97,31 +98,28 @@ bool cmLoadCacheCommand::ReadWithPrefix(std::vector<std::string> const& args)
     this->SetError("READ_WITH_PREFIX form must specify a prefix.");
     return false;
     }
-  
+
   // Make sure the cache file exists.
   std::string cacheFile = args[0]+"/CMakeCache.txt";
   if(!cmSystemTools::FileExists(cacheFile.c_str()))
     {
     std::string e = "Cannot load cache file from " + cacheFile;
-    this->SetError(e.c_str());
+    this->SetError(e);
     return false;
     }
-  
+
   // Prepare the table of variables to read.
   this->Prefix = args[2];
-  for(unsigned int i=3; i < args.size(); ++i)
-    {
-    this->VariablesToRead.insert(args[i]);
-    }
-  
+  this->VariablesToRead.insert(args.begin() + 3, args.end());
+
   // Read the cache file.
-  std::ifstream fin(cacheFile.c_str());  
-  
+  cmsys::ifstream fin(cacheFile.c_str());
+
   // This is a big hack read loop to overcome a buggy ifstream
   // implementation on HP-UX.  This should work on all platforms even
   // for small buffer sizes.
   const int bufferSize = 4096;
-  char buffer[bufferSize];  
+  char buffer[bufferSize];
   std::string line;
   while(fin)
     {
@@ -152,19 +150,19 @@ bool cmLoadCacheCommand::ReadWithPrefix(std::vector<std::string> const& args)
           // Completed a line.
           this->CheckLine(line.c_str());
           line = "";
-          
+
           // Skip the newline character.
           ++i;
           }
         }
       }
     }
-  if(line.length())
+  if(!line.empty())
     {
     // Partial last line.
     this->CheckLine(line.c_str());
     }
-  
+
   return true;
 }
 
@@ -174,8 +172,8 @@ void cmLoadCacheCommand::CheckLine(const char* line)
   // Check one line of the cache file.
   std::string var;
   std::string value;
-  cmCacheManager::CacheEntryType type = cmCacheManager::UNINITIALIZED;
-  if(cmCacheManager::ParseEntry(line, var, value, type))
+  cmState::CacheEntryType type = cmState::UNINITIALIZED;
+  if(cmake::ParseCacheEntry(line, var, value, type))
     {
     // Found a real entry.  See if this one was requested.
     if(this->VariablesToRead.find(var) != this->VariablesToRead.end())
@@ -183,13 +181,13 @@ void cmLoadCacheCommand::CheckLine(const char* line)
       // This was requested.  Set this variable locally with the given
       // prefix.
       var = this->Prefix + var;
-      if(value.length())
+      if(!value.empty())
         {
-        this->Makefile->AddDefinition(var.c_str(), value.c_str());
+        this->Makefile->AddDefinition(var, value.c_str());
         }
       else
         {
-        this->Makefile->RemoveDefinition(var.c_str());
+        this->Makefile->RemoveDefinition(var);
         }
       }
     }

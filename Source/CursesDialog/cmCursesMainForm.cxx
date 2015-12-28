@@ -9,7 +9,6 @@
   implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   See the License for more information.
 ============================================================================*/
-#include "../cmCacheManager.h"
 #include "../cmSystemTools.h"
 #include "../cmVersion.h"
 #include "../cmake.h"
@@ -22,6 +21,8 @@
 #include "cmCursesDummyWidget.h"
 #include "cmCursesCacheEntryComposite.h"
 #include "cmCursesLongMessageForm.h"
+#include "cmAlgorithms.h"
+#include "cmState.h"
 
 
 inline int ctrl(int z)
@@ -43,14 +44,14 @@ cmCursesMainForm::cmCursesMainForm(std::vector<std::string> const& args,
   this->HelpMessage.push_back("");
   this->HelpMessage.push_back(s_ConstHelpMessage);
   this->CMakeInstance = new cmake;
-  this->CMakeInstance->SetCMakeEditCommand("ccmake");
+  this->CMakeInstance->SetCMakeEditCommand(
+    cmSystemTools::GetCMakeCursesCommand());
 
   // create the arguments for the cmake object
-  std::string whereCMake = cmSystemTools::GetProgramPath(this->Args[0].c_str());
+  std::string whereCMake = cmSystemTools::GetProgramPath(this->Args[0]);
   whereCMake += "/cmake";
   this->Args[0] = whereCMake;
   this->CMakeInstance->SetArgs(this->Args);
-  this->CMakeInstance->SetCMakeCommand(whereCMake.c_str());
   this->SearchString = "";
   this->OldSearchString = "";
   this->SearchMode = false;
@@ -69,11 +70,7 @@ cmCursesMainForm::~cmCursesMainForm()
   // Clean-up composites
   if (this->Entries)
     {
-    std::vector<cmCursesCacheEntryComposite*>::iterator it;
-    for (it = this->Entries->begin(); it != this->Entries->end(); ++it)
-      {
-      delete *it;
-      }
+    cmDeleteAll(*this->Entries);
     }
   delete this->Entries;
   if (this->CMakeInstance)
@@ -84,9 +81,9 @@ cmCursesMainForm::~cmCursesMainForm()
 }
 
 // See if a cache entry is in the list of entries in the ui.
-bool cmCursesMainForm::LookForCacheEntry(const char* key)
+bool cmCursesMainForm::LookForCacheEntry(const std::string& key)
 {
-  if (!key || !this->Entries)
+  if (!this->Entries)
     {
     return false;
     }
@@ -94,7 +91,7 @@ bool cmCursesMainForm::LookForCacheEntry(const char* key)
   std::vector<cmCursesCacheEntryComposite*>::iterator it;
   for (it = this->Entries->begin(); it != this->Entries->end(); ++it)
     {
-    if (!strcmp(key, (*it)->Key.c_str()))
+    if (key == (*it)->Key)
       {
       return true;
       }
@@ -110,17 +107,21 @@ void cmCursesMainForm::InitializeUI()
   // which contain labels, entries and new entry markers
   std::vector<cmCursesCacheEntryComposite*>* newEntries =
     new std::vector<cmCursesCacheEntryComposite*>;
-  newEntries->reserve(this->CMakeInstance->GetCacheManager()->GetSize());
+  std::vector<std::string> cacheKeys =
+      this->CMakeInstance->GetState()->GetCacheEntryKeys();
+  newEntries->reserve(cacheKeys.size());
 
   // Count non-internal and non-static entries
   int count=0;
-  for(cmCacheManager::CacheIterator i =
-        this->CMakeInstance->GetCacheManager()->NewIterator();
-      !i.IsAtEnd(); i.Next())
+
+  for(std::vector<std::string>::const_iterator it = cacheKeys.begin();
+      it != cacheKeys.end(); ++it)
     {
-    if ( i.GetType() != cmCacheManager::INTERNAL &&
-         i.GetType() != cmCacheManager::STATIC  &&
-         i.GetType() != cmCacheManager::UNINITIALIZED)
+    cmState::CacheEntryType t = this->CMakeInstance->GetState()
+        ->GetCacheEntryType(*it);
+    if (t != cmState::INTERNAL &&
+        t != cmState::STATIC &&
+        t != cmState::UNINITIALIZED)
       {
       ++count;
       }
@@ -142,45 +143,49 @@ void cmCursesMainForm::InitializeUI()
     // Create the composites.
 
     // First add entries which are new
-    for(cmCacheManager::CacheIterator i =
-          this->CMakeInstance->GetCacheManager()->NewIterator();
-        !i.IsAtEnd(); i.Next())
+    for(std::vector<std::string>::const_iterator it = cacheKeys.begin();
+        it != cacheKeys.end(); ++it)
       {
-      const char* key = i.GetName();
-      if ( i.GetType() == cmCacheManager::INTERNAL ||
-           i.GetType() == cmCacheManager::STATIC ||
-           i.GetType() == cmCacheManager::UNINITIALIZED )
+      std::string key = *it;
+      cmState::CacheEntryType t = this->CMakeInstance->GetState()
+          ->GetCacheEntryType(*it);
+      if (t == cmState::INTERNAL ||
+          t == cmState::STATIC ||
+          t == cmState::UNINITIALIZED )
         {
         continue;
         }
 
       if (!this->LookForCacheEntry(key))
         {
-        newEntries->push_back(new cmCursesCacheEntryComposite(key, i,
-                                                              true, 30,
-                                                              entrywidth));
+        newEntries->push_back(new cmCursesCacheEntryComposite(key,
+                                                          this->CMakeInstance,
+                                                          true, 30,
+                                                          entrywidth));
         this->OkToGenerate = false;
         }
       }
 
     // then add entries which are old
-    for(cmCacheManager::CacheIterator i =
-          this->CMakeInstance->GetCacheManager()->NewIterator();
-        !i.IsAtEnd(); i.Next())
+    for(std::vector<std::string>::const_iterator it = cacheKeys.begin();
+        it != cacheKeys.end(); ++it)
       {
-      const char* key = i.GetName();
-      if ( i.GetType() == cmCacheManager::INTERNAL ||
-           i.GetType() == cmCacheManager::STATIC ||
-           i.GetType() == cmCacheManager::UNINITIALIZED )
+      std::string key = *it;
+      cmState::CacheEntryType t = this->CMakeInstance->GetState()
+          ->GetCacheEntryType(*it);
+      if (t == cmState::INTERNAL ||
+          t == cmState::STATIC ||
+          t == cmState::UNINITIALIZED )
         {
         continue;
         }
 
       if (this->LookForCacheEntry(key))
         {
-        newEntries->push_back(new cmCursesCacheEntryComposite(key, i,
-                                                              false, 30,
-                                                              entrywidth));
+        newEntries->push_back(new cmCursesCacheEntryComposite(key,
+                                                          this->CMakeInstance,
+                                                          false, 30,
+                                                          entrywidth));
         }
       }
     }
@@ -188,12 +193,7 @@ void cmCursesMainForm::InitializeUI()
   // Clean old entries
   if (this->Entries)
     {
-    // Have to call delete on each pointer
-    std::vector<cmCursesCacheEntryComposite*>::iterator it;
-    for (it = this->Entries->begin(); it != this->Entries->end(); ++it)
-      {
-      delete *it;
-      }
+    cmDeleteAll(*this->Entries);
     }
   delete this->Entries;
   this->Entries = newEntries;
@@ -224,10 +224,13 @@ void cmCursesMainForm::RePost()
     std::vector<cmCursesCacheEntryComposite*>::iterator it;
     for (it = this->Entries->begin(); it != this->Entries->end(); ++it)
       {
-      cmCacheManager::CacheIterator mit =
-        this->CMakeInstance->GetCacheManager()->GetCacheIterator((*it)->GetValue());
-      if (mit.IsAtEnd() ||
-          (!this->AdvancedMode && mit.GetPropertyAsBool("ADVANCED")))
+      const char* existingValue =
+          this->CMakeInstance->GetState()
+              ->GetCacheEntryValue((*it)->GetValue());
+      bool advanced =
+          this->CMakeInstance->GetState()
+              ->GetCacheEntryPropertyAsBool((*it)->GetValue(), "ADVANCED");
+      if (!existingValue || (!this->AdvancedMode && advanced))
         {
         continue;
         }
@@ -253,10 +256,13 @@ void cmCursesMainForm::RePost()
   std::vector<cmCursesCacheEntryComposite*>::iterator it;
   for (it = this->Entries->begin(); it != this->Entries->end(); ++it)
     {
-    cmCacheManager::CacheIterator mit =
-      this->CMakeInstance->GetCacheManager()->GetCacheIterator((*it)->GetValue());
-    if (mit.IsAtEnd() ||
-        (!this->AdvancedMode && mit.GetPropertyAsBool("ADVANCED")))
+    const char* existingValue =
+        this->CMakeInstance->GetState()
+            ->GetCacheEntryValue((*it)->GetValue());
+    bool advanced =
+        this->CMakeInstance->GetState()
+            ->GetCacheEntryPropertyAsBool((*it)->GetValue(), "ADVANCED");
+    if (!existingValue || (!this->AdvancedMode && advanced))
       {
       continue;
       }
@@ -287,9 +293,9 @@ void cmCursesMainForm::Render(int left, int top, int width, int height)
     cmCursesWidget* cw = reinterpret_cast<cmCursesWidget*>
       (field_userptr(currentField));
     // If in edit mode, get out of it
-    if ( cw->GetType() == cmCacheManager::STRING ||
-         cw->GetType() == cmCacheManager::PATH   ||
-         cw->GetType() == cmCacheManager::FILEPATH )
+    if ( cw->GetType() == cmState::STRING ||
+         cw->GetType() == cmState::PATH   ||
+         cw->GetType() == cmState::FILEPATH )
       {
       cmCursesStringWidget* sw = static_cast<cmCursesStringWidget*>(cw);
       sw->SetInEdit(false);
@@ -322,10 +328,13 @@ void cmCursesMainForm::Render(int left, int top, int width, int height)
     std::vector<cmCursesCacheEntryComposite*>::iterator it;
     for (it = this->Entries->begin(); it != this->Entries->end(); ++it)
       {
-      cmCacheManager::CacheIterator mit =
-        this->CMakeInstance->GetCacheManager()->GetCacheIterator((*it)->GetValue());
-      if (mit.IsAtEnd() ||
-          (!this->AdvancedMode && mit.GetPropertyAsBool("ADVANCED")))
+      const char* existingValue =
+          this->CMakeInstance->GetState()
+              ->GetCacheEntryValue((*it)->GetValue());
+      bool advanced =
+          this->CMakeInstance->GetState()
+              ->GetCacheEntryPropertyAsBool((*it)->GetValue(), "ADVANCED");
+      if (!existingValue || (!this->AdvancedMode && advanced))
         {
         continue;
         }
@@ -342,10 +351,13 @@ void cmCursesMainForm::Render(int left, int top, int width, int height)
     std::vector<cmCursesCacheEntryComposite*>::iterator it;
     for (it = this->Entries->begin(); it != this->Entries->end(); ++it)
       {
-      cmCacheManager::CacheIterator mit =
-        this->CMakeInstance->GetCacheManager()->GetCacheIterator((*it)->GetValue());
-      if (mit.IsAtEnd() ||
-          (!this->AdvancedMode && mit.GetPropertyAsBool("ADVANCED")))
+      const char* existingValue =
+          this->CMakeInstance->GetState()
+              ->GetCacheEntryValue((*it)->GetValue());
+      bool advanced =
+          this->CMakeInstance->GetState()
+              ->GetCacheEntryPropertyAsBool((*it)->GetValue(), "ADVANCED");
+      if (!existingValue || (!this->AdvancedMode && advanced))
         {
         continue;
         }
@@ -409,12 +421,11 @@ void cmCursesMainForm::PrintKeys(int process /* = 0 */)
   char thirdLine[512]="";
   if (process)
     {
-    sprintf(firstLine,
-            "                                                               ");
-    sprintf(secondLine,
-            "                                                               ");
-    sprintf(thirdLine,
-            "                                                               ");
+    const char* clearLine =
+      "                                                                    ";
+    strcpy(firstLine, clearLine);
+    strcpy(secondLine, clearLine);
+    strcpy(thirdLine, clearLine);
     }
   else
     {
@@ -440,24 +451,25 @@ void cmCursesMainForm::PrintKeys(int process /* = 0 */)
     }
 
   curses_move(y-4,0);
+  char fmt_s[] = "%s";
   char fmt[512] = "Press [enter] to edit option";
   if ( process )
     {
     strcpy(fmt, "                           ");
     }
-  printw(fmt);
+  printw(fmt_s, fmt);
   curses_move(y-3,0);
-  printw(firstLine);
+  printw(fmt_s, firstLine);
   curses_move(y-2,0);
-  printw(secondLine);
+  printw(fmt_s, secondLine);
   curses_move(y-1,0);
-  printw(thirdLine);
+  printw(fmt_s, thirdLine);
 
   if (cw)
     {
     sprintf(firstLine, "Page %d of %d", cw->GetPage(), this->NumberOfPages);
     curses_move(0,65-static_cast<unsigned int>(strlen(firstLine))-1);
-    printw(firstLine);
+    printw(fmt_s, firstLine);
     }
 //    }
 
@@ -504,11 +516,12 @@ void cmCursesMainForm::UpdateStatusBar(const char* message)
 
     // Get the help string of the current entry
     // and add it to the help string
-    cmCacheManager::CacheIterator it =
-      this->CMakeInstance->GetCacheManager()->GetCacheIterator(curField);
-    if (!it.IsAtEnd())
+    const char* existingValue =
+        this->CMakeInstance->GetState()->GetCacheEntryValue(curField);
+    if (existingValue)
       {
-      const char* hs = it.GetProperty("HELPSTRING");
+      const char* hs = this->CMakeInstance->GetState()
+                           ->GetCacheEntryProperty(curField, "HELPSTRING");
       if ( hs )
         {
         strncpy(help, hs, 127);
@@ -600,13 +613,13 @@ void cmCursesMainForm::UpdateStatusBar(const char* message)
   version[width] = '\0';
 
   // Now print both lines
+  char fmt_s[] = "%s";
   curses_move(y-5,0);
   attron(A_STANDOUT);
-  char format[] = "%s";
-  printw(format, bar);
+  printw(fmt_s, bar);
   attroff(A_STANDOUT);
   curses_move(y-4,0);
-  printw(version);
+  printw(fmt_s, version);
   pos_form_cursor(this->Form);
 }
 
@@ -648,7 +661,7 @@ int cmCursesMainForm::Configure(int noconfigure)
 
   // always save the current gui values to disk
   this->FillCacheManagerFromUI();
-  this->CMakeInstance->GetCacheManager()->SaveCache(
+  this->CMakeInstance->SaveCache(
     this->CMakeInstance->GetHomeOutputDirectory());
   this->LoadCache(0);
 
@@ -801,37 +814,42 @@ void cmCursesMainForm::FillCacheManagerFromUI()
   size_t size = this->Entries->size();
   for(size_t i=0; i < size; i++)
     {
-    cmCacheManager::CacheIterator it =
-      this->CMakeInstance->GetCacheManager()->GetCacheIterator(
-        (*this->Entries)[i]->Key.c_str());
-    if (!it.IsAtEnd())
+    std::string cacheKey = (*this->Entries)[i]->Key;
+      const char* existingValue = this->CMakeInstance->GetState()
+        ->GetCacheEntryValue(cacheKey);
+    if (existingValue)
       {
-      std::string oldValue = it.GetValue();
+      std::string oldValue = existingValue;
       std::string newValue = (*this->Entries)[i]->Entry->GetValue();
       std::string fixedOldValue;
       std::string fixedNewValue;
-      this->FixValue(it.GetType(), oldValue, fixedOldValue);
-      this->FixValue(it.GetType(), newValue, fixedNewValue);
+      cmState::CacheEntryType t =
+          this->CMakeInstance->GetState()
+              ->GetCacheEntryType(cacheKey);
+      this->FixValue(t, oldValue, fixedOldValue);
+      this->FixValue(t, newValue, fixedNewValue);
 
       if(!(fixedOldValue == fixedNewValue))
         {
         // The user has changed the value.  Mark it as modified.
-        it.SetProperty("MODIFIED", true);
-        it.SetValue(fixedNewValue.c_str());
+        this->CMakeInstance->GetState()
+            ->SetCacheEntryBoolProperty(cacheKey, "MODIFIED", true);
+        this->CMakeInstance->GetState()
+            ->SetCacheEntryValue(cacheKey, fixedNewValue);
         }
       }
     }
 }
 
-void cmCursesMainForm::FixValue(cmCacheManager::CacheEntryType type,
+void cmCursesMainForm::FixValue(cmState::CacheEntryType type,
                                 const std::string& in, std::string& out) const
 {
   out = in.substr(0,in.find_last_not_of(" ")+1);
-  if(type == cmCacheManager::PATH || type == cmCacheManager::FILEPATH)
+  if(type == cmState::PATH || type == cmState::FILEPATH)
     {
     cmSystemTools::ConvertToUnixSlashes(out);
     }
-  if(type == cmCacheManager::BOOL)
+  if(type == cmState::BOOL)
     {
     if(cmSystemTools::IsOff(out.c_str()))
       {
@@ -903,7 +921,7 @@ void cmCursesMainForm::HandleInput()
       if ( key == 10 || key == KEY_ENTER )
         {
         this->SearchMode = false;
-        if ( this->SearchString.size() > 0 )
+        if (!this->SearchString.empty())
           {
           this->JumpToCacheEntry(this->SearchString.c_str());
           this->OldSearchString = this->SearchString;
@@ -928,7 +946,7 @@ void cmCursesMainForm::HandleInput()
         }
       else if ( key == ctrl('h') || key == KEY_BACKSPACE || key == KEY_DC )
         {
-        if ( this->SearchString.size() > 0 )
+        if (!this->SearchString.empty())
           {
           this->SearchString.resize(this->SearchString.size()-1);
           }
@@ -1026,12 +1044,15 @@ void cmCursesMainForm::HandleInput()
         cmCursesWidget* lbl = reinterpret_cast<cmCursesWidget*>(field_userptr(
           this->Fields[findex-2]));
         const char* curField = lbl->GetValue();
-        const char* helpString=0;
-        cmCacheManager::CacheIterator it =
-          this->CMakeInstance->GetCacheManager()->GetCacheIterator(curField);
-        if (!it.IsAtEnd())
+        const char* helpString = 0;
+
+        const char* existingValue =
+            this->CMakeInstance->GetState()
+                ->GetCacheEntryValue(curField);
+        if (existingValue)
           {
-          helpString = it.GetProperty("HELPSTRING");
+          helpString = this->CMakeInstance->GetState()
+                           ->GetCacheEntryProperty(curField, "HELPSTRING");
           }
         if (helpString)
           {
@@ -1077,7 +1098,7 @@ void cmCursesMainForm::HandleInput()
         }
       else if ( key == 'n' )
         {
-        if ( this->OldSearchString.size() > 0 )
+        if (!this->OldSearchString.empty())
           {
           this->JumpToCacheEntry(this->OldSearchString.c_str());
           }
@@ -1141,7 +1162,7 @@ void cmCursesMainForm::HandleInput()
             field_userptr(this->Fields[findex-2]));
         if ( lbl )
           {
-          this->CMakeInstance->GetCacheManager()->RemoveCacheEntry(lbl->GetValue());
+          this->CMakeInstance->GetState()->RemoveCacheEntry(lbl->GetValue());
 
           std::string nextVal;
           if (nextCur)
@@ -1211,7 +1232,7 @@ void cmCursesMainForm::JumpToCacheEntry(const char* astr)
   int findex = start_index;
   for(;;)
     {
-    if ( str.size() > 0 )
+    if (!str.empty())
       {
       cmCursesWidget* lbl = 0;
       if ( findex >= 0 )

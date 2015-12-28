@@ -32,14 +32,11 @@ public:
   void PrintCoverage();
 private:
   bool ReadPHPData(const char* file);
-  bool ReadArraySize(std::ifstream& in, int& size);
-  bool ReadFileInformation(std::ifstream& in);
-  bool ReadInt(std::ifstream& in, int& v);
-  bool ReadCoverageArray(std::ifstream& in, cmStdString const&);
-  bool ReadUntil(std::ifstream& in, char until);
-  typedef std::map<int, int> FileLineCoverage;
-  std::map<cmStdString, FileLineCoverage> FileToCoverage;
-  std::map<int, int> FileCoverage;
+  bool ReadArraySize(std::istream& in, int& size);
+  bool ReadFileInformation(std::istream& in);
+  bool ReadInt(std::istream& in, int& v);
+  bool ReadCoverageArray(std::istream& in, std::string const&);
+  bool ReadUntil(std::istream& in, char until);
   cmCTestCoverageHandlerContainer& Coverage;
   cmCTest* CTest;
 };

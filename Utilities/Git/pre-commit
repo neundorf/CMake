@@ -19,6 +19,26 @@ die() {
   exit 1
 }
 
+#-------------------------------------------------------------------------------
+line_too_long=80
+bad=$(regex=".{$line_too_long}" &&
+git diff-index --cached HEAD --name-only --diff-filter=AM \
+    --pickaxe-regex -S"$regex" -- 'Source/*.h' 'Source/*.cxx' |
+while read file; do
+  lines_too_long=$(git diff-index -p --cached HEAD \
+                   --pickaxe-regex -S"$regex" -- "$file")
+  if echo "$lines_too_long" | egrep -q '^\+'"$regex"; then
+    echo "$lines_too_long"
+  fi
+done)
+test -z "$bad" ||
+die 'The following changes add lines too long for our C++ style:
+
+'"$bad"'
+
+Use lines strictly less than '"$line_too_long"' characters in C++ code.'
+
+#-------------------------------------------------------------------------------
 if test -z "$HOOKS_ALLOW_KWSYS"; then
   # Disallow changes to KWSys
   files=$(git diff-index --name-only --cached HEAD -- Source/kwsys) &&
@@ -27,18 +47,16 @@ if test -z "$HOOKS_ALLOW_KWSYS"; then
 
 '"$(echo "$files" | sed 's/^/  /')"'
 
-cannot be committed through Git.  KWSys is kept in a CVS repository
-shared by several projects.  A robot replays changes committed there
-into the Source/kwsys directory in CMake.  Please send changes to
-this directory separately.  Run
+should not be made directly in CMake.  KWSys is kept in its own Git
+repository and shared by several projects.  Please visit
+
+  http://public.kitware.com/Wiki/KWSys/Git
+
+to contribute changes directly to KWSys.  Run
 
   git reset HEAD -- Source/kwsys
 
-to unstage these changes and then
-
-  git diff -- Source/kwsys > kwsys.patch
-
-to construct the patch.  Alternatively, set environment variable
+to unstage these changes.  Alternatively, set environment variable
 
   HOOKS_ALLOW_KWSYS=1
 

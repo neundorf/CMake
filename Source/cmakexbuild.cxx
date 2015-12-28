@@ -15,7 +15,7 @@
 
 // This is a wrapper program for xcodebuild
 // it calls xcodebuild, and does two things
-// it removes much of the output, all the setevn
+// it removes much of the output, all the setenv
 // stuff.  Also, it checks for the text file busy
 // error, and re-runs xcodebuild until that error does
 // not show up.
@@ -33,7 +33,7 @@ int RunXCode(std::vector<const char*>& argv, bool& hitbug)
   int pipe = cmSystemTools::WaitForLine(cp, line, 100.0, out, err);
   while(pipe != cmsysProcess_Pipe_None)
     {
-    if(line.find("/bin/sh: bad interpreter: Text file busy") 
+    if(line.find("/bin/sh: bad interpreter: Text file busy")
        != line.npos)
       {
       hitbug = true;
@@ -69,7 +69,7 @@ int RunXCode(std::vector<const char*>& argv, bool& hitbug)
 }
 
 int main(int ac, char*av[])
-{ 
+{
   std::vector<const char*> argv;
   argv.push_back("xcodebuild");
   for(int i =1; i < ac; i++)

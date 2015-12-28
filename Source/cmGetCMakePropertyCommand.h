@@ -17,7 +17,7 @@
 class cmGetCMakePropertyCommand : public cmCommand
 {
 public:
-  virtual cmCommand* Clone() 
+  virtual cmCommand* Clone()
     {
       return new cmGetCMakePropertyCommand;
     }
@@ -32,38 +32,13 @@ public:
   /**
    * This determines if the command is invoked when in script mode.
    */
-  virtual bool IsScriptable() { return true; }
+  virtual bool IsScriptable() const { return true; }
 
   /**
    * The name of the command as specified in CMakeList.txt.
    */
-  virtual const char* GetName() { return "get_cmake_property";}
+  virtual std::string GetName() const { return "get_cmake_property";}
 
-  /**
-   * Succinct documentation.
-   */
-  virtual const char* GetTerseDocumentation() 
-    {
-    return "Get a property of the CMake instance.";
-    }
-  
-  /**
-   * Longer documentation.
-   */
-  virtual const char* GetFullDocumentation()
-    {
-      return
-        "  get_cmake_property(VAR property)\n"
-        "Get a property from the CMake instance.  "
-        "The value of the property is stored in the variable VAR.  "
-        "If the property is not found, VAR will be set to \"NOTFOUND\".  "
-        "Some supported properties "
-        "include: VARIABLES, CACHE_VARIABLES, COMMANDS, MACROS, and "
-        "COMPONENTS."
-        "\n"
-        "See also the more general get_property() command.";
-    }
-  
   cmTypeMacro(cmGetCMakePropertyCommand, cmCommand);
 };
 

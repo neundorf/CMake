@@ -23,8 +23,8 @@
  * cmCommand is the base class for all commands in CMake. A command
  * manifests as an entry in CMakeLists.txt and produces one or
  * more makefile rules. Commands are associated with a particular
- * makefile. This base class cmCommand defines the API for commands 
- * to support such features as enable/disable, inheritance, 
+ * makefile. This base class cmCommand defines the API for commands
+ * to support such features as enable/disable, inheritance,
  * documentation, and construction.
  */
 class cmCommand : public cmObject
@@ -35,18 +35,18 @@ public:
   /**
    * Construct the command. By default it is enabled with no makefile.
    */
-  cmCommand()  
+  cmCommand()
     {this->Makefile = 0; this->Enabled = true;}
 
   /**
    * Need virtual destructor to destroy real command type.
    */
   virtual ~cmCommand() {}
-  
+
   /**
    * Specify the makefile.
    */
-  void SetMakefile(cmMakefile*m) 
+  void SetMakefile(cmMakefile*m)
     {this->Makefile = m; }
   cmMakefile* GetMakefile() { return this->Makefile; }
 
@@ -81,80 +81,72 @@ public:
    * not implement this method.  At this point, reading and
    * writing to the cache can be done.
    */
-  virtual void FinalPass() {};
+  virtual void FinalPass() {}
 
   /**
    * Does this command have a final pass?  Query after InitialPass.
    */
   virtual bool HasFinalPass() const { return false; }
-  
+
   /**
    * This is a virtual constructor for the command.
    */
   virtual cmCommand* Clone() = 0;
-  
+
   /**
    * This determines if the command is invoked when in script mode.
    */
-  virtual bool IsScriptable()
+  virtual bool IsScriptable() const
     {
     return false;
     }
 
   /**
-   * This determines if usage of the method is discouraged or not.
-   * This is currently only used for generating the documentation.
+   * This is used to avoid including this command
+   * in documentation. This is mainly used by
+   * cmMacroHelperCommand and cmFunctionHelperCommand
+   * which cannot provide appropriate documentation.
    */
-  virtual bool IsDiscouraged()
+  virtual bool ShouldAppearInDocumentation() const
     {
-    return false;
+    return true;
     }
 
   /**
    * The name of the command as specified in CMakeList.txt.
    */
-  virtual const char* GetName() = 0;
-
-  /**
-   * Succinct documentation.
-   */
-  virtual const char* GetTerseDocumentation() = 0;
-
-  /**
-   * More documentation.
-   */
-  virtual const char* GetFullDocumentation() = 0;
+  virtual std::string GetName() const = 0;
 
   /**
    * Enable the command.
    */
-  void EnabledOn() 
+  void EnabledOn()
     {this->Enabled = true;}
 
   /**
    * Disable the command.
    */
-  void EnabledOff() 
+  void EnabledOff()
     {this->Enabled = false;}
 
   /**
    * Query whether the command is enabled.
    */
-  bool GetEnabled()  
+  bool GetEnabled() const
     {return this->Enabled;}
 
   /**
    * Disable or enable the command.
    */
-  void SetEnabled(bool enabled)  
+  void SetEnabled(bool enabled)
     {this->Enabled = enabled;}
 
   /**
    * Return the last error string.
    */
-  const char* GetError() 
+  const char* GetError()
     {
-      if(this->Error.length() == 0)
+      if(this->Error.empty())
         {
         this->Error = this->GetName();
         this->Error += " unknown error.";
@@ -165,11 +157,30 @@ public:
   /**
    * Set the error message
    */
-  void SetError(const char* e)
+  void SetError(const std::string& e)
     {
     this->Error = this->GetName();
     this->Error += " ";
     this->Error += e;
+    }
+
+  /** Check if the command is disallowed by a policy.  */
+  bool Disallowed(cmPolicies::PolicyID pol, const char* e)
+    {
+    switch(this->Makefile->GetPolicyStatus(pol))
+      {
+      case cmPolicies::WARN:
+        this->Makefile->IssueMessage(cmake::AUTHOR_WARNING,
+          cmPolicies::GetPolicyWarning(pol));
+      case cmPolicies::OLD:
+        return false;
+      case cmPolicies::REQUIRED_IF_USED:
+      case cmPolicies::REQUIRED_ALWAYS:
+      case cmPolicies::NEW:
+        this->Makefile->IssueMessage(cmake::FATAL_ERROR, e);
+        break;
+      }
+    return true;
     }
 
 protected:

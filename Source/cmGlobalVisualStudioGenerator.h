@@ -23,13 +23,26 @@
 class cmGlobalVisualStudioGenerator : public cmGlobalGenerator
 {
 public:
-  cmGlobalVisualStudioGenerator();
+  /** Known versions of Visual Studio.  */
+  enum VSVersion
+  {
+    VS6 = 60,
+    VS7 = 70,
+    VS71 = 71,
+    VS8 = 80,
+    VS9 = 90,
+    VS10 = 100,
+    VS11 = 110,
+    VS12 = 120,
+    /* VS13 = 130 was skipped */
+    VS14 = 140
+  };
+
+  cmGlobalVisualStudioGenerator(cmake* cm);
   virtual ~cmGlobalVisualStudioGenerator();
 
-  /**
-   * Basic generate implementation for all VS generators.
-   */
-  virtual void Generate();
+  VSVersion GetVersion() const;
+  void SetVersion(VSVersion v);
 
   /**
    * Configure CMake's Visual Studio macros file into the user's Visual
@@ -56,27 +69,50 @@ public:
    * Call the ReloadProjects macro if necessary based on
    * GetFilesReplacedDuringGenerate results.
    */
-  virtual void CallVisualStudioMacro(MacroName m,
-                                     const char* vsSolutionFile = 0);
-  
+  void CallVisualStudioMacro(MacroName m,
+                             const char* vsSolutionFile = 0);
+
   // return true if target is fortran only
-  bool TargetIsFortranOnly(cmTarget& t);
+  bool TargetIsFortranOnly(const cmGeneratorTarget *gt);
 
   /** Get the top-level registry key for this VS version.  */
   std::string GetRegistryBase();
+
+  /** Get the top-level registry key for the given VS version.  */
+  static std::string GetRegistryBase(const char* version);
 
   /** Return true if the generated build tree may contain multiple builds.
       i.e. "Can I build Debug and Release in the same tree?" */
   virtual bool IsMultiConfig() { return true; }
 
-  class TargetSet: public std::set<cmTarget*> {};
-  struct TargetCompare
+  /** Return true if building for Windows CE */
+  virtual bool TargetsWindowsCE() const { return false; }
+
+  class TargetSet: public std::set<cmGeneratorTarget const*> {};
+  class TargetCompare
   {
-    bool operator()(cmTarget const* l, cmTarget const* r) const;
+    std::string First;
+  public:
+    TargetCompare(std::string const& first): First(first) {}
+    bool operator()(cmGeneratorTarget const* l,
+                    cmGeneratorTarget const* r) const;
   };
   class OrderedTargetDependSet;
 
+  virtual void FindMakeProgram(cmMakefile*);
+
+
+  virtual std::string ExpandCFGIntDir(const std::string& str,
+                                      const std::string& config) const;
+
+  void ComputeTargetObjectDirectory(cmGeneratorTarget* gt) const;
+
+  void AddSymbolExportCommand(
+    cmGeneratorTarget*, std::vector<cmCustomCommand>& commands,
+    std::string const& configName);
 protected:
+  virtual void AddExtraIDETargets();
+
   // Does this VS version link targets to each other if there are
   // dependencies in the SLN file?  This was done for VS versions
   // below 8.
@@ -85,35 +121,49 @@ protected:
   virtual const char* GetIDEVersion() = 0;
 
   virtual bool ComputeTargetDepends();
-  class VSDependSet: public std::set<cmStdString> {};
-  class VSDependMap: public std::map<cmTarget*, VSDependSet> {};
+  class VSDependSet: public std::set<std::string> {};
+  class VSDependMap: public std::map<cmGeneratorTarget const*, VSDependSet> {};
   VSDependMap VSTargetDepends;
-  void ComputeVSTargetDepends(cmTarget&);
+  void ComputeVSTargetDepends(cmGeneratorTarget *);
 
-  bool CheckTargetLinks(cmTarget& target, const char* name);
-  std::string GetUtilityForTarget(cmTarget& target, const char*);
-  virtual std::string WriteUtilityDepend(cmTarget*) = 0;
-  std::string GetUtilityDepend(cmTarget* target);
-  typedef std::map<cmTarget*, cmStdString> UtilityDependsMap;
+  bool CheckTargetLinks(cmGeneratorTarget& target, const std::string& name);
+  std::string GetUtilityForTarget(cmGeneratorTarget& target,
+                                  const std::string&);
+  virtual std::string WriteUtilityDepend(cmGeneratorTarget const*) = 0;
+  std::string GetUtilityDepend(const cmGeneratorTarget *target);
+  typedef std::map<cmGeneratorTarget const*, std::string> UtilityDependsMap;
   UtilityDependsMap UtilityDepends;
-private:
-  void FollowLinkDepends(cmTarget* target, std::set<cmTarget*>& linked);
 
-  class TargetSetMap: public std::map<cmTarget*, TargetSet> {};
+protected:
+  VSVersion Version;
+
+private:
+  virtual std::string GetVSMakeProgram() = 0;
+  void PrintCompilerAdvice(std::ostream&, std::string const&,
+                           const char*) const {}
+
+  void FollowLinkDepends(cmGeneratorTarget const* target,
+                         std::set<cmGeneratorTarget const*>& linked);
+
+  class TargetSetMap: public std::map<cmGeneratorTarget*, TargetSet> {};
   TargetSetMap TargetLinkClosure;
-  void FillLinkClosure(cmTarget* target, TargetSet& linked);
-  TargetSet const& GetTargetLinkClosure(cmTarget* target);
+  void FillLinkClosure(const cmGeneratorTarget *target,
+                       TargetSet& linked);
+  TargetSet const& GetTargetLinkClosure(cmGeneratorTarget* target);
 };
 
 class cmGlobalVisualStudioGenerator::OrderedTargetDependSet:
   public std::multiset<cmTargetDepend,
                        cmGlobalVisualStudioGenerator::TargetCompare>
 {
+  typedef std::multiset<cmTargetDepend,
+                        cmGlobalVisualStudioGenerator::TargetCompare>
+    derived;
 public:
   typedef cmGlobalGenerator::TargetDependSet TargetDependSet;
   typedef cmGlobalVisualStudioGenerator::TargetSet TargetSet;
-  OrderedTargetDependSet(TargetDependSet const&);
-  OrderedTargetDependSet(TargetSet const&);
+  OrderedTargetDependSet(TargetDependSet const&, std::string const& first);
+  OrderedTargetDependSet(TargetSet const&, std::string const& first);
 };
 
 #endif

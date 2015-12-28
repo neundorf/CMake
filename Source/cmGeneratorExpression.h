@@ -9,15 +9,25 @@
   implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   See the License for more information.
 ============================================================================*/
-#include "cmStandardIncludes.h"
 
-#include <stack>
+#ifndef cmGeneratorExpression_h
+#define cmGeneratorExpression_h
+
+#include "cmStandardIncludes.h"
+#include "cmListFileCache.h"
 
 #include <cmsys/RegularExpression.hxx>
+#include <cmsys/auto_ptr.hxx>
 
-class cmTarget;
-class cmMakefile;
+class cmGeneratorTarget;
+class cmLocalGenerator;
 class cmListFileBacktrace;
+
+struct cmGeneratorExpressionEvaluator;
+struct cmGeneratorExpressionContext;
+struct cmGeneratorExpressionDAGChecker;
+
+class cmCompiledGeneratorExpression;
 
 /** \class cmGeneratorExpression
  * \brief Evaluate generate-time query expression syntax.
@@ -31,28 +41,124 @@ class cmListFileBacktrace;
 class cmGeneratorExpression
 {
 public:
-  /** Construct with an evaluation context and configuration.  */
-  cmGeneratorExpression(cmMakefile* mf, const char* config,
-                        cmListFileBacktrace const& backtrace,
-                        bool quiet = false);
+  /** Construct. */
+  cmGeneratorExpression(
+      cmListFileBacktrace const& backtrace = cmListFileBacktrace());
+  ~cmGeneratorExpression();
 
-  /** Evaluate generator expressions in a string.  */
-  const char* Process(std::string const& input);
-  const char* Process(const char* input);
+  cmsys::auto_ptr<cmCompiledGeneratorExpression> Parse(
+                                                std::string const& input);
+  cmsys::auto_ptr<cmCompiledGeneratorExpression> Parse(const char* input);
+
+  enum PreprocessContext {
+    StripAllGeneratorExpressions,
+    BuildInterface,
+    InstallInterface
+  };
+
+  static std::string Preprocess(const std::string &input,
+                                PreprocessContext context,
+                                bool resolveRelative = false);
+
+  static void Split(const std::string &input,
+                    std::vector<std::string> &output);
+
+  static std::string::size_type Find(const std::string &input);
+
+  static bool IsValidTargetName(const std::string &input);
+
+  static std::string StripEmptyListElements(const std::string &input);
+private:
+  cmGeneratorExpression(const cmGeneratorExpression &);
+  void operator=(const cmGeneratorExpression &);
+
+  cmListFileBacktrace Backtrace;
+};
+
+class cmCompiledGeneratorExpression
+{
+public:
+  const char* Evaluate(cmLocalGenerator* lg, const std::string& config,
+                       bool quiet = false,
+                       cmGeneratorTarget const* headTarget = 0,
+                       cmGeneratorTarget const* currentTarget = 0,
+                       cmGeneratorExpressionDAGChecker *dagChecker = 0,
+                       std::string const& language = std::string()) const;
+  const char* Evaluate(cmLocalGenerator* lg, const std::string& config,
+                       bool quiet,
+                       cmGeneratorTarget const* headTarget,
+                       cmGeneratorExpressionDAGChecker *dagChecker,
+                       std::string const& language = std::string()) const;
 
   /** Get set of targets found during evaluations.  */
-  std::set<cmTarget*> const& GetTargets() const
-    { return this->Targets; }
+  std::set<cmGeneratorTarget*> const& GetTargets() const
+    { return this->DependTargets; }
+
+  std::set<std::string> const& GetSeenTargetProperties() const
+    { return this->SeenTargetProperties; }
+
+  std::set<cmGeneratorTarget const*> const& GetAllTargetsSeen() const
+    { return this->AllTargetsSeen; }
+
+  ~cmCompiledGeneratorExpression();
+
+  std::string const& GetInput() const
+  {
+    return this->Input;
+  }
+
+  cmListFileBacktrace GetBacktrace() const
+  {
+    return this->Backtrace;
+  }
+  bool GetHadContextSensitiveCondition() const
+  {
+    return this->HadContextSensitiveCondition;
+  }
+  bool GetHadHeadSensitiveCondition() const
+  {
+    return this->HadHeadSensitiveCondition;
+  }
+  std::set<cmGeneratorTarget const*> GetSourceSensitiveTargets() const
+  {
+    return this->SourceSensitiveTargets;
+  }
+
+  void SetEvaluateForBuildsystem(bool eval)
+  {
+    this->EvaluateForBuildsystem = eval;
+  }
+
+  void GetMaxLanguageStandard(cmGeneratorTarget const* tgt,
+                    std::map<std::string, std::string>& mapping);
+
 private:
-  cmMakefile* Makefile;
-  const char* Config;
-  cmListFileBacktrace const& Backtrace;
-  bool Quiet;
-  std::vector<char> Data;
-  std::stack<size_t> Barriers;
-  cmsys::RegularExpression TargetInfo;
-  std::set<cmTarget*> Targets;
-  bool Evaluate();
-  bool Evaluate(const char* expr, std::string& result);
-  bool EvaluateTargetInfo(std::string& result);
+  const char* EvaluateWithContext(cmGeneratorExpressionContext& context,
+                           cmGeneratorExpressionDAGChecker *dagChecker) const;
+
+  cmCompiledGeneratorExpression(cmListFileBacktrace const& backtrace,
+              const std::string& input);
+
+  friend class cmGeneratorExpression;
+
+  cmCompiledGeneratorExpression(const cmCompiledGeneratorExpression &);
+  void operator=(const cmCompiledGeneratorExpression &);
+
+  cmListFileBacktrace Backtrace;
+  std::vector<cmGeneratorExpressionEvaluator*> Evaluators;
+  const std::string Input;
+  bool NeedsEvaluation;
+
+  mutable std::set<cmGeneratorTarget*> DependTargets;
+  mutable std::set<cmGeneratorTarget const*> AllTargetsSeen;
+  mutable std::set<std::string> SeenTargetProperties;
+  mutable std::map<cmGeneratorTarget const*,
+                   std::map<std::string, std::string> > MaxLanguageStandard;
+  mutable std::string Output;
+  mutable bool HadContextSensitiveCondition;
+  mutable bool HadHeadSensitiveCondition;
+  mutable std::set<cmGeneratorTarget const*>  SourceSensitiveTargets;
+  bool EvaluateForBuildsystem;
 };
+
+#endif

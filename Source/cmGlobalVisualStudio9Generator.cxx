@@ -13,21 +13,97 @@
 #include "cmGlobalVisualStudio9Generator.h"
 #include "cmLocalVisualStudio7Generator.h"
 #include "cmMakefile.h"
+#include "cmVisualStudioWCEPlatformParser.h"
 #include "cmake.h"
 
+static const char vs9generatorName[] = "Visual Studio 9 2008";
 
-
-cmGlobalVisualStudio9Generator::cmGlobalVisualStudio9Generator()
+class cmGlobalVisualStudio9Generator::Factory
+  : public cmGlobalGeneratorFactory
 {
-  this->FindMakeProgramFile = "CMakeVS9FindMake.cmake";
+public:
+  virtual cmGlobalGenerator*
+  CreateGlobalGenerator(const std::string& name, cmake* cm) const {
+    if(strncmp(name.c_str(), vs9generatorName,
+               sizeof(vs9generatorName) - 1) != 0)
+      {
+      return 0;
+      }
+
+    const char* p = name.c_str() + sizeof(vs9generatorName) - 1;
+    if(p[0] == '\0')
+      {
+      return new cmGlobalVisualStudio9Generator(cm, name, "");
+      }
+
+    if(p[0] != ' ')
+      {
+      return 0;
+      }
+
+    ++p;
+
+    if(!strcmp(p, "IA64"))
+      {
+      return new cmGlobalVisualStudio9Generator(cm, name, "Itanium");
+      }
+
+    if(!strcmp(p, "Win64"))
+      {
+      return new cmGlobalVisualStudio9Generator(cm, name, "x64");
+      }
+
+    cmVisualStudioWCEPlatformParser parser(p);
+    parser.ParseVersion("9.0");
+    if (!parser.Found())
+      {
+      return 0;
+      }
+
+    cmGlobalVisualStudio9Generator* ret =
+        new cmGlobalVisualStudio9Generator(cm, name, p);
+    ret->WindowsCEVersion = parser.GetOSVersion();
+    return ret;
+  }
+
+  virtual void GetDocumentation(cmDocumentationEntry& entry) const {
+    entry.Name = std::string(vs9generatorName) + " [arch]";
+    entry.Brief =
+      "Generates Visual Studio 2008 project files.  "
+      "Optional [arch] can be \"Win64\" or \"IA64\"."
+      ;
+  }
+
+  virtual void GetGenerators(std::vector<std::string>& names) const {
+    names.push_back(vs9generatorName);
+    names.push_back(vs9generatorName + std::string(" Win64"));
+    names.push_back(vs9generatorName + std::string(" IA64"));
+    cmVisualStudioWCEPlatformParser parser;
+    parser.ParseVersion("9.0");
+    const std::vector<std::string>& availablePlatforms =
+      parser.GetAvailablePlatforms();
+    for(std::vector<std::string>::const_iterator i =
+        availablePlatforms.begin(); i != availablePlatforms.end(); ++i)
+      {
+      names.push_back("Visual Studio 9 2008 " + *i);
+      }
+  }
+
+  virtual bool SupportsToolset() const { return false; }
+};
+
+//----------------------------------------------------------------------------
+cmGlobalGeneratorFactory* cmGlobalVisualStudio9Generator::NewFactory()
+{
+  return new Factory;
 }
 
 //----------------------------------------------------------------------------
-void cmGlobalVisualStudio9Generator::AddPlatformDefinitions(cmMakefile* mf)
+cmGlobalVisualStudio9Generator::cmGlobalVisualStudio9Generator(cmake* cm,
+  const std::string& name, const std::string& platformName)
+  : cmGlobalVisualStudio8Generator(cm, name, platformName)
 {
-  mf->AddDefinition("MSVC_C_ARCHITECTURE_ID", this->ArchitectureId);
-  mf->AddDefinition("MSVC_CXX_ARCHITECTURE_ID", this->ArchitectureId);
-  mf->AddDefinition("MSVC90", "1");
+  this->Version = VS9;
 }
 
 //----------------------------------------------------------------------------
@@ -35,34 +111,6 @@ void cmGlobalVisualStudio9Generator::WriteSLNHeader(std::ostream& fout)
 {
   fout << "Microsoft Visual Studio Solution File, Format Version 10.00\n";
   fout << "# Visual Studio 2008\n";
-}
-
-///! Create a local generator appropriate to this Global Generator
-cmLocalGenerator *cmGlobalVisualStudio9Generator::CreateLocalGenerator()
-{
-  cmLocalVisualStudio7Generator *lg
-    = new cmLocalVisualStudio7Generator(cmLocalVisualStudioGenerator::VS9);
-  lg->SetPlatformName(this->GetPlatformName());
-  lg->SetExtraFlagTable(this->GetExtraFlagTableVS8());
-  lg->SetGlobalGenerator(this);
-  return lg;
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalVisualStudio9Generator
-::GetDocumentation(cmDocumentationEntry& entry) const
-{
-  entry.Name = this->GetName();
-  entry.Brief = "Generates Visual Studio 9 2008 project files.";
-  entry.Full = "";
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalVisualStudio9Generator
-::EnableLanguage(std::vector<std::string>const &  lang, 
-                 cmMakefile *mf, bool optional)
-{
-  cmGlobalVisualStudio8Generator::EnableLanguage(lang, mf, optional);
 }
 
 //----------------------------------------------------------------------------

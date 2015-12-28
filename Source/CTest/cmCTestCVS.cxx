@@ -13,9 +13,10 @@
 
 #include "cmCTest.h"
 #include "cmSystemTools.h"
-#include "cmXMLSafe.h"
+#include "cmXMLWriter.h"
 
 #include <cmsys/RegularExpression.hxx>
+#include <cmsys/FStream.hxx>
 
 //----------------------------------------------------------------------------
 cmCTestCVS::cmCTestCVS(cmCTest* ct, std::ostream& log): cmCTestVC(ct, log)
@@ -98,7 +99,7 @@ bool cmCTestCVS::UpdateImpl()
       opts = "-dP";
       }
     }
-  std::vector<cmStdString> args = cmSystemTools::ParseArguments(opts.c_str());
+  std::vector<std::string> args = cmSystemTools::ParseArguments(opts.c_str());
 
   // Specify the start time for nightly testing.
   if(this->CTest->GetTestModel() == cmCTest::NIGHTLY)
@@ -111,7 +112,7 @@ bool cmCTestCVS::UpdateImpl()
   cvs_update.push_back(this->CommandLineTool.c_str());
   cvs_update.push_back("-z3");
   cvs_update.push_back("update");
-  for(std::vector<cmStdString>::const_iterator ai = args.begin();
+  for(std::vector<std::string>::const_iterator ai = args.begin();
       ai != args.end(); ++ai)
     {
     cvs_update.push_back(ai->c_str());
@@ -231,7 +232,7 @@ std::string cmCTestCVS::ComputeBranchFlag(std::string const& dir)
 
   // Lookup the branch in the tag file, if any.
   std::string tagLine;
-  std::ifstream tagStream(tagFile.c_str());
+  cmsys::ifstream tagStream(tagFile.c_str());
   if(tagStream && cmSystemTools::GetLineFromStream(tagStream, tagLine) &&
      tagLine.size() > 1 && tagLine[0] == 'T')
     {
@@ -265,13 +266,13 @@ void cmCTestCVS::LoadRevisions(std::string const& file,
 }
 
 //----------------------------------------------------------------------------
-void cmCTestCVS::WriteXMLDirectory(std::ostream& xml,
+void cmCTestCVS::WriteXMLDirectory(cmXMLWriter& xml,
                                    std::string const& path,
                                    Directory const& dir)
 {
   const char* slash = path.empty()? "":"/";
-  xml << "\t<Directory>\n"
-      << "\t\t<Name>" << cmXMLSafe(path) << "</Name>\n";
+  xml.StartElement("Directory");
+  xml.Element("Name", path);
 
   // Lookup the branch checked out in the working tree.
   std::string branchFlag = this->ComputeBranchFlag(path);
@@ -297,17 +298,17 @@ void cmCTestCVS::WriteXMLDirectory(std::ostream& xml,
     File f(fi->second, &revisions[0], &revisions[1]);
     this->WriteXMLEntry(xml, path, fi->first, full, f);
     }
-  xml << "\t</Directory>\n";
+  xml.EndElement(); // Directory
 }
 
 //----------------------------------------------------------------------------
-bool cmCTestCVS::WriteXMLUpdates(std::ostream& xml)
+bool cmCTestCVS::WriteXMLUpdates(cmXMLWriter& xml)
 {
   cmCTestLog(this->CTest, HANDLER_OUTPUT,
              "   Gathering version information (one . per updated file):\n"
              "    " << std::flush);
 
-  for(std::map<cmStdString, Directory>::const_iterator
+  for(std::map<std::string, Directory>::const_iterator
         di = this->Dirs.begin(); di != this->Dirs.end(); ++di)
     {
     this->WriteXMLDirectory(xml, di->first, di->second);

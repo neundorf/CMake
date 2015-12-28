@@ -19,7 +19,7 @@ bool cmLinkLibrariesCommand
     {
     return true;
     }
-  // add libraries, nothe that there is an optional prefix 
+  // add libraries, nothe that there is an optional prefix
   // of debug and optimized than can be used
   for(std::vector<std::string>::const_iterator i = args.begin();
       i != args.end(); ++i)
@@ -33,8 +33,8 @@ bool cmLinkLibrariesCommand
                        "a library");
         return false;
         }
-      this->Makefile->AddLinkLibrary(i->c_str(),
-                                 cmTarget::DEBUG);
+      this->Makefile->AddLinkLibrary(*i,
+                                 DEBUG_LibraryType);
       }
     else if (*i == "optimized")
       {
@@ -45,15 +45,15 @@ bool cmLinkLibrariesCommand
                        "a library");
         return false;
         }
-      this->Makefile->AddLinkLibrary(i->c_str(),
-                                 cmTarget::OPTIMIZED);
+      this->Makefile->AddLinkLibrary(*i,
+                                 OPTIMIZED_LibraryType);
       }
     else
       {
-      this->Makefile->AddLinkLibrary(i->c_str());  
+      this->Makefile->AddLinkLibrary(*i);
       }
     }
-  
+
   return true;
 }
 

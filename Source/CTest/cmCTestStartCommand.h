@@ -34,6 +34,7 @@ public:
     ni->CTest = this->CTest;
     ni->CTestScriptHandler = this->CTestScriptHandler;
     ni->CreateNewTag = this->CreateNewTag;
+    ni->Quiet = this->Quiet;
     return ni;
     }
 
@@ -53,39 +54,24 @@ public:
     }
 
   /**
+   * Should this invocation of ctest_start output non-error messages?
+   */
+  bool ShouldBeQuiet()
+    {
+    return this->Quiet;
+    }
+
+  /**
    * The name of the command as specified in CMakeList.txt.
    */
-  virtual const char* GetName() { return "ctest_start";}
-
-  /**
-   * Succinct documentation.
-   */
-  virtual const char* GetTerseDocumentation()
-    {
-    return "Starts the testing for a given model";
-    }
-
-  /**
-   * More documentation.
-   */
-  virtual const char* GetFullDocumentation()
-    {
-    return
-      "  ctest_start(Model [TRACK <track>] [APPEND] [source [binary]])\n"
-      "Starts the testing for a given model. The command should be called "
-      "after the binary directory is initialized. If the 'source' and "
-      "'binary' directory are not specified, it reads the "
-      "CTEST_SOURCE_DIRECTORY and CTEST_BINARY_DIRECTORY. If the track is "
-      "specified, the submissions will go to the specified track. "
-      "If APPEND is used, the existing TAG is used rather than "
-      "creating a new one based on the current time stamp.";
-    }
+  virtual std::string GetName() const { return "ctest_start";}
 
   cmTypeMacro(cmCTestStartCommand, cmCTestCommand);
 
 private:
   bool InitialCheckout(std::ostream& ofs, std::string const& sourceDir);
   bool CreateNewTag;
+  bool Quiet;
 };
 
 

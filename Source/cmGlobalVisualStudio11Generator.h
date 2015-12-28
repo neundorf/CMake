@@ -20,27 +20,37 @@ class cmGlobalVisualStudio11Generator:
   public cmGlobalVisualStudio10Generator
 {
 public:
-  cmGlobalVisualStudio11Generator();
-  static cmGlobalGenerator* New() {
-    return new cmGlobalVisualStudio11Generator; }
+  cmGlobalVisualStudio11Generator(cmake* cm, const std::string& name,
+    const std::string& platformName);
+  static cmGlobalGeneratorFactory* NewFactory();
 
-  ///! Get the name for the generator.
-  virtual const char* GetName() const {
-    return cmGlobalVisualStudio11Generator::GetActualName();}
-  static const char* GetActualName() {return "Visual Studio 11";}
-  virtual void AddPlatformDefinitions(cmMakefile* mf);
+  virtual bool MatchesGeneratorName(const std::string& name) const;
 
   virtual void WriteSLNHeader(std::ostream& fout);
 
-  /** Get the documentation entry for this generator.  */
-  virtual void GetDocumentation(cmDocumentationEntry& entry) const;
-
-  ///! create the correct local generator
-  virtual cmLocalGenerator *CreateLocalGenerator();
-
-  /** TODO: VS 11 user macro support. */
-  virtual std::string GetUserMacrosDirectory() { return ""; }
 protected:
+  virtual bool InitializeWindowsPhone(cmMakefile* mf);
+  virtual bool InitializeWindowsStore(cmMakefile* mf);
+  virtual bool SelectWindowsPhoneToolset(std::string& toolset) const;
+  virtual bool SelectWindowsStoreToolset(std::string& toolset) const;
+
+  // Used to verify that the Desktop toolset for the current generator is
+  // installed on the machine.
+  virtual bool IsWindowsDesktopToolsetInstalled() const;
+
+  // These aren't virtual because we need to check if the selected version
+  // of the toolset is installed
+  bool IsWindowsPhoneToolsetInstalled() const;
+  bool IsWindowsStoreToolsetInstalled() const;
+
   virtual const char* GetIDEVersion() { return "11.0"; }
+  bool UseFolderProperty();
+  static std::set<std::string> GetInstalledWindowsCESDKs();
+
+  /** Return true if the configuration needs to be deployed */
+  virtual bool NeedsDeploy(cmState::TargetType type) const;
+private:
+  class Factory;
+  friend class Factory;
 };
 #endif

@@ -13,8 +13,8 @@
 #define cmCustomCommand_h
 
 #include "cmStandardIncludes.h"
+#include "cmListFileCache.h"
 class cmMakefile;
-class cmListFileBacktrace;
 
 /** \class cmCustomCommand
  * \brief A class to encapsulate a custom command
@@ -26,26 +26,28 @@ class cmCustomCommand
 public:
   /** Default and copy constructors for STL containers.  */
   cmCustomCommand();
-  cmCustomCommand(const cmCustomCommand& r);
 
   /** Main constructor specifies all information for the command.  */
-  cmCustomCommand(cmMakefile* mf,
+  cmCustomCommand(cmMakefile const* mf,
                   const std::vector<std::string>& outputs,
+                  const std::vector<std::string>& byproducts,
                   const std::vector<std::string>& depends,
                   const cmCustomCommandLines& commandLines,
                   const char* comment,
                   const char* workingDirectory);
 
-  ~cmCustomCommand();
-
   /** Get the output file produced by the command.  */
   const std::vector<std::string>& GetOutputs() const;
 
-  /** Get the working directory.  */
-  const char* GetWorkingDirectory() const;
+  /** Get the extra files produced by the command.  */
+  const std::vector<std::string>& GetByproducts() const;
 
   /** Get the vector that holds the list of dependencies.  */
   const std::vector<std::string>& GetDepends() const;
+
+  /** Get the working directory.  */
+  std::string const& GetWorkingDirectory() const
+    { return this->WorkingDirectory; }
 
   /** Get the list of command lines.  */
   const cmCustomCommandLines& GetCommandLines() const;
@@ -71,23 +73,30 @@ public:
   /** Backtrace of the command that created this custom command.  */
   cmListFileBacktrace const& GetBacktrace() const;
 
-  typedef std::pair<cmStdString, cmStdString> ImplicitDependsPair;
+  typedef std::pair<std::string, std::string> ImplicitDependsPair;
   class ImplicitDependsList: public std::vector<ImplicitDependsPair> {};
   void SetImplicitDepends(ImplicitDependsList const&);
   void AppendImplicitDepends(ImplicitDependsList const&);
   ImplicitDependsList const& GetImplicitDepends() const;
 
+  /** Set/Get whether this custom command should be given access to the
+      real console (if possible).  */
+  bool GetUsesTerminal() const;
+  void SetUsesTerminal(bool b);
+
 private:
   std::vector<std::string> Outputs;
+  std::vector<std::string> Byproducts;
   std::vector<std::string> Depends;
   cmCustomCommandLines CommandLines;
-  bool HaveComment;
+  cmListFileBacktrace Backtrace;
+  ImplicitDependsList ImplicitDepends;
   std::string Comment;
   std::string WorkingDirectory;
+  bool HaveComment;
   bool EscapeAllowMakeVars;
   bool EscapeOldStyle;
-  cmListFileBacktrace* Backtrace;
-  ImplicitDependsList ImplicitDepends;
+  bool UsesTerminal;
 };
 
 #endif

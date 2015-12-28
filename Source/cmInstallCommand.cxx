@@ -17,31 +17,43 @@
 #include "cmInstallTargetGenerator.h"
 #include "cmInstallExportGenerator.h"
 #include "cmInstallCommandArguments.h"
+#include "cmTargetExport.h"
+#include "cmExportSet.h"
 
 #include <cmsys/Glob.hxx>
 
 static cmInstallTargetGenerator* CreateInstallTargetGenerator(cmTarget& target,
      const cmInstallCommandArguments& args, bool impLib, bool forceOpt = false)
 {
-  return new cmInstallTargetGenerator(target, args.GetDestination().c_str(), 
-                        impLib, args.GetPermissions().c_str(), 
+  cmInstallGenerator::MessageLevel message =
+    cmInstallGenerator::SelectMessageLevel(target.GetMakefile());
+  target.SetHaveInstallRule(true);
+  return new cmInstallTargetGenerator(target.GetName(),
+                        args.GetDestination().c_str(),
+                        impLib, args.GetPermissions().c_str(),
                         args.GetConfigurations(), args.GetComponent().c_str(),
+                        message,
                         args.GetOptional() || forceOpt);
 }
 
 static cmInstallFilesGenerator* CreateInstallFilesGenerator(
-    const std::vector<std::string>& absFiles, 
+  cmMakefile* mf,
+    const std::vector<std::string>& absFiles,
     const cmInstallCommandArguments& args, bool programs)
 {
-  return new cmInstallFilesGenerator(absFiles, args.GetDestination().c_str(), 
-                        programs, args.GetPermissions().c_str(), 
+  cmInstallGenerator::MessageLevel message =
+    cmInstallGenerator::SelectMessageLevel(mf);
+  return new cmInstallFilesGenerator(
+                        absFiles, args.GetDestination().c_str(),
+                        programs, args.GetPermissions().c_str(),
                         args.GetConfigurations(), args.GetComponent().c_str(),
+                        message,
                         args.GetRename().c_str(), args.GetOptional());
 }
 
 
 // cmInstallCommand
-bool cmInstallCommand::InitialPass(std::vector<std::string> const& args, 
+bool cmInstallCommand::InitialPass(std::vector<std::string> const& args,
                                    cmExecutionStatus &)
 {
   // Allow calling with no arguments so that arguments may be built up
@@ -52,8 +64,14 @@ bool cmInstallCommand::InitialPass(std::vector<std::string> const& args,
     }
 
   // Enable the install target.
-  this->Makefile->GetLocalGenerator()
-    ->GetGlobalGenerator()->EnableInstallTarget();
+  this->Makefile->GetGlobalGenerator()->EnableInstallTarget();
+
+  this->DefaultComponentName = this->Makefile->GetSafeDefinition(
+                                       "CMAKE_INSTALL_DEFAULT_COMPONENT_NAME");
+  if (this->DefaultComponentName.empty())
+    {
+    this->DefaultComponentName = "Unspecified";
+    }
 
   // Switch among the command modes.
   if(args[0] == "SCRIPT")
@@ -86,16 +104,16 @@ bool cmInstallCommand::InitialPass(std::vector<std::string> const& args,
     }
 
   // Unknown mode.
-  cmStdString e = "called with unknown mode ";
+  std::string e = "called with unknown mode ";
   e += args[0];
-  this->SetError(e.c_str());
+  this->SetError(e);
   return false;
 }
 
 //----------------------------------------------------------------------------
 bool cmInstallCommand::HandleScriptMode(std::vector<std::string> const& args)
 {
-  std::string component("Unspecified");
+  std::string component = this->DefaultComponentName;
   int componentCount = 0;
   bool doing_script = false;
   bool doing_code = false;
@@ -146,11 +164,11 @@ bool cmInstallCommand::HandleScriptMode(std::vector<std::string> const& args)
       std::string script = args[i];
       if(!cmSystemTools::FileIsFullPath(script.c_str()))
         {
-        script = this->Makefile->GetCurrentDirectory();
+        script = this->Makefile->GetCurrentSourceDirectory();
         script += "/";
         script += args[i];
         }
-      if(cmSystemTools::FileIsDirectory(script.c_str()))
+      if(cmSystemTools::FileIsDirectory(script))
         {
         this->SetError("given a directory as value of SCRIPT argument.");
         return false;
@@ -181,7 +199,7 @@ bool cmInstallCommand::HandleScriptMode(std::vector<std::string> const& args)
     }
 
   //Tell the global generator about any installation component names specified.
-  this->Makefile->GetLocalGenerator()->GetGlobalGenerator()
+  this->Makefile->GetGlobalGenerator()
                              ->AddInstallComponent(component.c_str());
 
   return true;
@@ -190,7 +208,7 @@ bool cmInstallCommand::HandleScriptMode(std::vector<std::string> const& args)
 
 /*struct InstallPart
 {
-  InstallPart(cmCommandArgumentsHelper* helper, const char* key, 
+  InstallPart(cmCommandArgumentsHelper* helper, const char* key,
          cmCommandArgumentGroup* group);
   cmCAStringVector argVector;
   cmInstallCommandArguments args;
@@ -210,6 +228,7 @@ bool cmInstallCommand::HandleTargetsMode(std::vector<std::string> const& args)
   cmCAStringVector runtimeArgVector      (&argHelper,"RUNTIME",&group);
   cmCAStringVector frameworkArgVector    (&argHelper,"FRAMEWORK",&group);
   cmCAStringVector bundleArgVector       (&argHelper,"BUNDLE",&group);
+  cmCAStringVector includesArgVector     (&argHelper,"INCLUDES",&group);
   cmCAStringVector privateHeaderArgVector(&argHelper,"PRIVATE_HEADER",&group);
   cmCAStringVector publicHeaderArgVector (&argHelper,"PUBLIC_HEADER",&group);
   cmCAStringVector resourceArgVector     (&argHelper,"RESOURCE",&group);
@@ -222,7 +241,7 @@ bool cmInstallCommand::HandleTargetsMode(std::vector<std::string> const& args)
   // ARCHIVE, RUNTIME etc. (see above)
   // These generic args also contain the targets and the export stuff
   std::vector<std::string> unknownArgs;
-  cmInstallCommandArguments genericArgs;
+  cmInstallCommandArguments genericArgs(this->DefaultComponentName);
   cmCAStringVector targetList(&genericArgs.Parser, "TARGETS");
   cmCAString exports(&genericArgs.Parser,"EXPORT", &genericArgs.ArgumentGroup);
   targetList.Follows(0);
@@ -230,16 +249,17 @@ bool cmInstallCommand::HandleTargetsMode(std::vector<std::string> const& args)
   genericArgs.Parse(&genericArgVector.GetVector(), &unknownArgs);
   bool success = genericArgs.Finalize();
 
-  cmInstallCommandArguments archiveArgs;
-  cmInstallCommandArguments libraryArgs;
-  cmInstallCommandArguments runtimeArgs;
-  cmInstallCommandArguments frameworkArgs;
-  cmInstallCommandArguments bundleArgs;
-  cmInstallCommandArguments privateHeaderArgs;
-  cmInstallCommandArguments publicHeaderArgs;
-  cmInstallCommandArguments resourceArgs;
+  cmInstallCommandArguments archiveArgs(this->DefaultComponentName);
+  cmInstallCommandArguments libraryArgs(this->DefaultComponentName);
+  cmInstallCommandArguments runtimeArgs(this->DefaultComponentName);
+  cmInstallCommandArguments frameworkArgs(this->DefaultComponentName);
+  cmInstallCommandArguments bundleArgs(this->DefaultComponentName);
+  cmInstallCommandArguments privateHeaderArgs(this->DefaultComponentName);
+  cmInstallCommandArguments publicHeaderArgs(this->DefaultComponentName);
+  cmInstallCommandArguments resourceArgs(this->DefaultComponentName);
+  cmInstallCommandIncludesArgument includesArgs;
 
-  // now parse the args for specific parts of the target (e.g. LIBRARY, 
+  // now parse the args for specific parts of the target (e.g. LIBRARY,
   // RUNTIME, ARCHIVE etc.
   archiveArgs.Parse      (&archiveArgVector.GetVector(),       &unknownArgs);
   libraryArgs.Parse      (&libraryArgVector.GetVector(),       &unknownArgs);
@@ -249,13 +269,14 @@ bool cmInstallCommand::HandleTargetsMode(std::vector<std::string> const& args)
   privateHeaderArgs.Parse(&privateHeaderArgVector.GetVector(), &unknownArgs);
   publicHeaderArgs.Parse (&publicHeaderArgVector.GetVector(),  &unknownArgs);
   resourceArgs.Parse     (&resourceArgVector.GetVector(),      &unknownArgs);
+  includesArgs.Parse     (&includesArgVector.GetVector(),      &unknownArgs);
 
   if(!unknownArgs.empty())
     {
     // Unknown argument.
-    cmOStringStream e;
+    std::ostringstream e;
     e << "TARGETS given unknown argument \"" << unknownArgs[0] << "\".";
-    this->SetError(e.str().c_str());
+    this->SetError(e.str());
     return false;
     }
 
@@ -345,38 +366,57 @@ bool cmInstallCommand::HandleTargetsMode(std::vector<std::string> const& args)
                        this->Makefile->IsOn("CYGWIN") ||
                        this->Makefile->IsOn("MINGW"));
 
-  for(std::vector<std::string>::const_iterator 
+  for(std::vector<std::string>::const_iterator
       targetIt=targetList.GetVector().begin();
       targetIt!=targetList.GetVector().end();
       ++targetIt)
     {
-      // Lookup this target in the current directory.
-      if(cmTarget* target=this->Makefile->FindTarget(targetIt->c_str()))
+
+    if (this->Makefile->IsAlias(*targetIt))
+      {
+      std::ostringstream e;
+      e << "TARGETS given target \"" << (*targetIt)
+        << "\" which is an alias.";
+      this->SetError(e.str());
+      return false;
+      }
+    // Lookup this target in the current directory.
+    if(cmTarget* target=this->Makefile->FindTarget(*targetIt))
+      {
+      // Found the target.  Check its type.
+      if(target->GetType() != cmState::EXECUTABLE &&
+         target->GetType() != cmState::STATIC_LIBRARY &&
+         target->GetType() != cmState::SHARED_LIBRARY &&
+         target->GetType() != cmState::MODULE_LIBRARY &&
+         target->GetType() != cmState::OBJECT_LIBRARY &&
+         target->GetType() != cmState::INTERFACE_LIBRARY)
         {
-        // Found the target.  Check its type.
-        if(target->GetType() != cmTarget::EXECUTABLE &&
-           target->GetType() != cmTarget::STATIC_LIBRARY &&
-           target->GetType() != cmTarget::SHARED_LIBRARY &&
-           target->GetType() != cmTarget::MODULE_LIBRARY)
-          {
-          cmOStringStream e;
-          e << "TARGETS given target \"" << (*targetIt)
-            << "\" which is not an executable, library, or module.";
-          this->SetError(e.str().c_str());
-          return false;
-          }
-        // Store the target in the list to be installed.
-        targets.push_back(target);
-        }
-      else
-        {
-        // Did not find the target.
-        cmOStringStream e;
+        std::ostringstream e;
         e << "TARGETS given target \"" << (*targetIt)
-          << "\" which does not exist in this directory.";
-        this->SetError(e.str().c_str());
+          << "\" which is not an executable, library, or module.";
+        this->SetError(e.str());
         return false;
         }
+      else if(target->GetType() == cmState::OBJECT_LIBRARY)
+        {
+        std::ostringstream e;
+        e << "TARGETS given OBJECT library \"" << (*targetIt)
+          << "\" which may not be installed.";
+        this->SetError(e.str());
+        return false;
+        }
+      // Store the target in the list to be installed.
+      targets.push_back(target);
+      }
+    else
+      {
+      // Did not find the target.
+      std::ostringstream e;
+      e << "TARGETS given target \"" << (*targetIt)
+        << "\" which does not exist in this directory.";
+      this->SetError(e.str());
+      return false;
+      }
     }
 
   // Keep track of whether we will be performing an installation of
@@ -410,10 +450,10 @@ bool cmInstallCommand::HandleTargetsMode(std::vector<std::string> const& args)
 
     switch(target.GetType())
       {
-      case cmTarget::SHARED_LIBRARY:
+      case cmState::SHARED_LIBRARY:
         {
         // Shared libraries are handled differently on DLL and non-DLL
-        // platforms.  All windows platforms are DLL platforms including 
+        // platforms.  All windows platforms are DLL platforms including
         // cygwin.  Currently no other platform is a DLL platform.
         if(dll_platform)
           {
@@ -427,13 +467,13 @@ bool cmInstallCommand::HandleTargetsMode(std::vector<std::string> const& args)
           if(!archiveArgs.GetDestination().empty())
             {
             // The import library uses the ARCHIVE properties.
-            archiveGenerator = CreateInstallTargetGenerator(target, 
+            archiveGenerator = CreateInstallTargetGenerator(target,
                                                             archiveArgs, true);
             }
           if(!runtimeArgs.GetDestination().empty())
             {
             // The DLL uses the RUNTIME properties.
-            runtimeGenerator = CreateInstallTargetGenerator(target, 
+            runtimeGenerator = CreateInstallTargetGenerator(target,
                                                            runtimeArgs, false);
             }
           if ((archiveGenerator==0) && (runtimeGenerator==0))
@@ -458,15 +498,15 @@ bool cmInstallCommand::HandleTargetsMode(std::vector<std::string> const& args)
             // Use the FRAMEWORK properties.
             if (!frameworkArgs.GetDestination().empty())
               {
-              frameworkGenerator = CreateInstallTargetGenerator(target, 
+              frameworkGenerator = CreateInstallTargetGenerator(target,
                                                          frameworkArgs, false);
               }
             else
               {
-              cmOStringStream e;
+              std::ostringstream e;
               e << "TARGETS given no FRAMEWORK DESTINATION for shared library "
                 "FRAMEWORK target \"" << target.GetName() << "\".";
-              this->SetError(e.str().c_str());
+              this->SetError(e.str());
               return false;
               }
             }
@@ -475,7 +515,7 @@ bool cmInstallCommand::HandleTargetsMode(std::vector<std::string> const& args)
             // The shared library uses the LIBRARY properties.
             if (!libraryArgs.GetDestination().empty())
               {
-              libraryGenerator = CreateInstallTargetGenerator(target, 
+              libraryGenerator = CreateInstallTargetGenerator(target,
                                                            libraryArgs, false);
               libraryGenerator->SetNamelinkMode(namelinkMode);
               namelinkOnly =
@@ -483,40 +523,40 @@ bool cmInstallCommand::HandleTargetsMode(std::vector<std::string> const& args)
               }
             else
               {
-              cmOStringStream e;
+              std::ostringstream e;
               e << "TARGETS given no LIBRARY DESTINATION for shared library "
                 "target \"" << target.GetName() << "\".";
-              this->SetError(e.str().c_str());
+              this->SetError(e.str());
               return false;
               }
             }
           }
         }
         break;
-      case cmTarget::STATIC_LIBRARY:
+      case cmState::STATIC_LIBRARY:
         {
         // Static libraries use ARCHIVE properties.
         if (!archiveArgs.GetDestination().empty())
           {
-          archiveGenerator = CreateInstallTargetGenerator(target, archiveArgs, 
+          archiveGenerator = CreateInstallTargetGenerator(target, archiveArgs,
                                                           false);
           }
         else
           {
-          cmOStringStream e;
+          std::ostringstream e;
           e << "TARGETS given no ARCHIVE DESTINATION for static library "
             "target \"" << target.GetName() << "\".";
-          this->SetError(e.str().c_str());
+          this->SetError(e.str());
           return false;
           }
         }
         break;
-      case cmTarget::MODULE_LIBRARY:
+      case cmState::MODULE_LIBRARY:
         {
         // Modules use LIBRARY properties.
         if (!libraryArgs.GetDestination().empty())
           {
-          libraryGenerator = CreateInstallTargetGenerator(target, libraryArgs, 
+          libraryGenerator = CreateInstallTargetGenerator(target, libraryArgs,
                                                           false);
           libraryGenerator->SetNamelinkMode(namelinkMode);
           namelinkOnly =
@@ -524,22 +564,22 @@ bool cmInstallCommand::HandleTargetsMode(std::vector<std::string> const& args)
           }
         else
           {
-          cmOStringStream e;
+          std::ostringstream e;
           e << "TARGETS given no LIBRARY DESTINATION for module target \""
             << target.GetName() << "\".";
-          this->SetError(e.str().c_str());
+          this->SetError(e.str());
           return false;
           }
         }
         break;
-      case cmTarget::EXECUTABLE:
+      case cmState::EXECUTABLE:
         {
         if(target.IsAppBundleOnApple())
           {
           // Application bundles use the BUNDLE properties.
           if (!bundleArgs.GetDestination().empty())
             {
-            bundleGenerator = CreateInstallTargetGenerator(target, bundleArgs, 
+            bundleGenerator = CreateInstallTargetGenerator(target, bundleArgs,
                                                            false);
             }
           else if(!runtimeArgs.GetDestination().empty())
@@ -559,10 +599,10 @@ bool cmInstallCommand::HandleTargetsMode(std::vector<std::string> const& args)
             }
           if(!bundleGenerator)
             {
-            cmOStringStream e;
+            std::ostringstream e;
             e << "TARGETS given no BUNDLE DESTINATION for MACOSX_BUNDLE "
                  "executable target \"" << target.GetName() << "\".";
-            this->SetError(e.str().c_str());
+            this->SetError(e.str());
             return false;
             }
           }
@@ -571,15 +611,15 @@ bool cmInstallCommand::HandleTargetsMode(std::vector<std::string> const& args)
           // Executables use the RUNTIME properties.
           if (!runtimeArgs.GetDestination().empty())
             {
-            runtimeGenerator = CreateInstallTargetGenerator(target, 
+            runtimeGenerator = CreateInstallTargetGenerator(target,
                                                            runtimeArgs, false);
             }
           else
             {
-            cmOStringStream e;
+            std::ostringstream e;
             e << "TARGETS given no RUNTIME DESTINATION for executable "
                  "target \"" << target.GetName() << "\".";
-            this->SetError(e.str().c_str());
+            this->SetError(e.str());
             return false;
             }
           }
@@ -591,10 +631,15 @@ bool cmInstallCommand::HandleTargetsMode(std::vector<std::string> const& args)
            target.IsExecutableWithExports())
           {
           // The import library uses the ARCHIVE properties.
-          archiveGenerator = CreateInstallTargetGenerator(target, 
+          archiveGenerator = CreateInstallTargetGenerator(target,
                                                       archiveArgs, true, true);
           }
         }
+        break;
+      case cmState::INTERFACE_LIBRARY:
+          // Nothing to do. An INTERFACE_LIBRARY can be installed, but the
+          // only effect of that is to make it exportable. It installs no
+          // other files itself.
         break;
       default:
         // This should never happen due to the above type check.
@@ -602,98 +647,101 @@ bool cmInstallCommand::HandleTargetsMode(std::vector<std::string> const& args)
         break;
       }
 
-  // These well-known sets of files are installed *automatically* for FRAMEWORK
-  // SHARED library targets on the Mac as part of installing the FRAMEWORK.
-  // For other target types or on other platforms, they are not installed
-  // automatically and so we need to create install files generators for them.
-  //
-  bool createInstallGeneratorsForTargetFileSets = true;
+    // These well-known sets of files are installed *automatically* for
+    // FRAMEWORK SHARED library targets on the Mac as part of installing the
+    // FRAMEWORK.  For other target types or on other platforms, they are not
+    // installed automatically and so we need to create install files
+    // generators for them.
+    bool createInstallGeneratorsForTargetFileSets = true;
 
-  if(target.IsFrameworkOnApple())
-    {
-    createInstallGeneratorsForTargetFileSets = false;
-    }
-
-  if(createInstallGeneratorsForTargetFileSets && !namelinkOnly)
-    {
-    const char* files = target.GetProperty("PRIVATE_HEADER");
-    if ((files) && (*files))
+    if(target.IsFrameworkOnApple()
+        || target.GetType() == cmState::INTERFACE_LIBRARY)
       {
-      std::vector<std::string> relFiles;
-      cmSystemTools::ExpandListArgument(files, relFiles);
-      std::vector<std::string> absFiles;
-      if (!this->MakeFilesFullPath("PRIVATE_HEADER", relFiles, absFiles))
-        {
-        return false;
-        }
-
-      // Create the files install generator.
-      if (!privateHeaderArgs.GetDestination().empty())
-        {
-        privateHeaderGenerator = CreateInstallFilesGenerator(absFiles, 
-                                                     privateHeaderArgs, false);
-        }
-      else
-        {
-        cmOStringStream e;
-        e << "INSTALL TARGETS - target " << target.GetName() << " has "
-          << "PRIVATE_HEADER files but no PRIVATE_HEADER DESTINATION.";
-        cmSystemTools::Message(e.str().c_str(), "Warning");
-        }
+      createInstallGeneratorsForTargetFileSets = false;
       }
 
-    files = target.GetProperty("PUBLIC_HEADER");
-    if ((files) && (*files))
+    if(createInstallGeneratorsForTargetFileSets && !namelinkOnly)
       {
-      std::vector<std::string> relFiles;
-      cmSystemTools::ExpandListArgument(files, relFiles);
-      std::vector<std::string> absFiles;
-      if (!this->MakeFilesFullPath("PUBLIC_HEADER", relFiles, absFiles))
+      const char* files = target.GetProperty("PRIVATE_HEADER");
+      if ((files) && (*files))
         {
-        return false;
+        std::vector<std::string> relFiles;
+        cmSystemTools::ExpandListArgument(files, relFiles);
+        std::vector<std::string> absFiles;
+        if (!this->MakeFilesFullPath("PRIVATE_HEADER", relFiles, absFiles))
+          {
+          return false;
+          }
+
+        // Create the files install generator.
+        if (!privateHeaderArgs.GetDestination().empty())
+          {
+          privateHeaderGenerator =
+            CreateInstallFilesGenerator(this->Makefile, absFiles,
+                                        privateHeaderArgs, false);
+          }
+        else
+          {
+          std::ostringstream e;
+          e << "INSTALL TARGETS - target " << target.GetName() << " has "
+            << "PRIVATE_HEADER files but no PRIVATE_HEADER DESTINATION.";
+          cmSystemTools::Message(e.str().c_str(), "Warning");
+          }
         }
 
-      // Create the files install generator.
-      if (!publicHeaderArgs.GetDestination().empty())
+      files = target.GetProperty("PUBLIC_HEADER");
+      if ((files) && (*files))
         {
-        publicHeaderGenerator = CreateInstallFilesGenerator(absFiles, 
-                                                      publicHeaderArgs, false);
+        std::vector<std::string> relFiles;
+        cmSystemTools::ExpandListArgument(files, relFiles);
+        std::vector<std::string> absFiles;
+        if (!this->MakeFilesFullPath("PUBLIC_HEADER", relFiles, absFiles))
+          {
+          return false;
+          }
+
+        // Create the files install generator.
+        if (!publicHeaderArgs.GetDestination().empty())
+          {
+          publicHeaderGenerator =
+            CreateInstallFilesGenerator(this->Makefile, absFiles,
+                                        publicHeaderArgs, false);
+          }
+        else
+          {
+          std::ostringstream e;
+          e << "INSTALL TARGETS - target " << target.GetName() << " has "
+            << "PUBLIC_HEADER files but no PUBLIC_HEADER DESTINATION.";
+          cmSystemTools::Message(e.str().c_str(), "Warning");
+          }
         }
-      else
+
+      files = target.GetProperty("RESOURCE");
+      if ((files) && (*files))
         {
-        cmOStringStream e;
-        e << "INSTALL TARGETS - target " << target.GetName() << " has "
-          << "PUBLIC_HEADER files but no PUBLIC_HEADER DESTINATION.";
-        cmSystemTools::Message(e.str().c_str(), "Warning");
+        std::vector<std::string> relFiles;
+        cmSystemTools::ExpandListArgument(files, relFiles);
+        std::vector<std::string> absFiles;
+        if (!this->MakeFilesFullPath("RESOURCE", relFiles, absFiles))
+          {
+          return false;
+          }
+
+        // Create the files install generator.
+        if (!resourceArgs.GetDestination().empty())
+          {
+          resourceGenerator = CreateInstallFilesGenerator(
+            this->Makefile, absFiles, resourceArgs, false);
+          }
+        else
+          {
+          std::ostringstream e;
+          e << "INSTALL TARGETS - target " << target.GetName() << " has "
+            << "RESOURCE files but no RESOURCE DESTINATION.";
+          cmSystemTools::Message(e.str().c_str(), "Warning");
+          }
         }
       }
-
-    files = target.GetProperty("RESOURCE");
-    if ((files) && (*files))
-      {
-      std::vector<std::string> relFiles;
-      cmSystemTools::ExpandListArgument(files, relFiles);
-      std::vector<std::string> absFiles;
-      if (!this->MakeFilesFullPath("RESOURCE", relFiles, absFiles))
-        {
-        return false;
-        }
-
-      // Create the files install generator.
-      if (!resourceArgs.GetDestination().empty())
-        {
-        resourceGenerator = CreateInstallFilesGenerator(absFiles, 
-                                                        resourceArgs, false);
-        }
-      else
-        {
-        cmOStringStream e;
-        e << "INSTALL TARGETS - target " << target.GetName() << " has "
-          << "RESOURCE files but no RESOURCE DESTINATION.";
-        cmSystemTools::Message(e.str().c_str(), "Warning");
-        }
-      }
-    }
 
     // Keep track of whether we're installing anything in each category
     installsArchive = installsArchive || archiveGenerator != 0;
@@ -701,7 +749,7 @@ bool cmInstallCommand::HandleTargetsMode(std::vector<std::string> const& args)
     installsRuntime = installsRuntime || runtimeGenerator != 0;
     installsFramework = installsFramework || frameworkGenerator != 0;
     installsBundle = installsBundle || bundleGenerator != 0;
-    installsPrivateHeader = installsPrivateHeader 
+    installsPrivateHeader = installsPrivateHeader
       || privateHeaderGenerator != 0;
     installsPublicHeader = installsPublicHeader || publicHeaderGenerator != 0;
     installsResource = installsResource || resourceGenerator;
@@ -719,11 +767,19 @@ bool cmInstallCommand::HandleTargetsMode(std::vector<std::string> const& args)
     // this is not a namelink-only rule.
     if(!exports.GetString().empty() && !namelinkOnly)
       {
-      this->Makefile->GetLocalGenerator()->GetGlobalGenerator()
-        ->AddTargetToExports(exports.GetCString(), &target, 
-                             archiveGenerator, runtimeGenerator,
-                             libraryGenerator, frameworkGenerator,
-                             bundleGenerator, publicHeaderGenerator);
+      cmTargetExport *te = new cmTargetExport;
+      te->TargetName = target.GetName();
+      te->ArchiveGenerator = archiveGenerator;
+      te->BundleGenerator = bundleGenerator;
+      te->FrameworkGenerator = frameworkGenerator;
+      te->HeaderGenerator = publicHeaderGenerator;
+      te->LibraryGenerator = libraryGenerator;
+      te->RuntimeGenerator = runtimeGenerator;
+      this->Makefile->GetGlobalGenerator()
+        ->GetExportSets()[exports.GetString()]->AddTargetExport(te);
+
+      te->InterfaceIncludeDirectories =
+          cmJoin(includesArgs.GetIncludeDirs(), ";");
       }
     }
 
@@ -731,43 +787,42 @@ bool cmInstallCommand::HandleTargetsMode(std::vector<std::string> const& args)
   // specified
   if (installsArchive)
     {
-    this->Makefile->GetLocalGenerator()->
-      GetGlobalGenerator()
+    this->Makefile->GetGlobalGenerator()
       ->AddInstallComponent(archiveArgs.GetComponent().c_str());
     }
   if (installsLibrary)
     {
-    this->Makefile->GetLocalGenerator()->GetGlobalGenerator()
+    this->Makefile->GetGlobalGenerator()
       ->AddInstallComponent(libraryArgs.GetComponent().c_str());
     }
   if (installsRuntime)
     {
-    this->Makefile->GetLocalGenerator()->GetGlobalGenerator()
+    this->Makefile->GetGlobalGenerator()
       ->AddInstallComponent(runtimeArgs.GetComponent().c_str());
     }
   if (installsFramework)
     {
-    this->Makefile->GetLocalGenerator()->GetGlobalGenerator()
+    this->Makefile->GetGlobalGenerator()
       ->AddInstallComponent(frameworkArgs.GetComponent().c_str());
     }
   if (installsBundle)
     {
-    this->Makefile->GetLocalGenerator()->GetGlobalGenerator()
+    this->Makefile->GetGlobalGenerator()
       ->AddInstallComponent(bundleArgs.GetComponent().c_str());
     }
   if (installsPrivateHeader)
     {
-    this->Makefile->GetLocalGenerator()->GetGlobalGenerator()
+    this->Makefile->GetGlobalGenerator()
       ->AddInstallComponent(privateHeaderArgs.GetComponent().c_str());
     }
   if (installsPublicHeader)
     {
-    this->Makefile->GetLocalGenerator()->GetGlobalGenerator()
+    this->Makefile->GetGlobalGenerator()
       ->AddInstallComponent(publicHeaderArgs.GetComponent().c_str());
     }
   if (installsResource)
     {
-    this->Makefile->GetLocalGenerator()->GetGlobalGenerator()
+    this->Makefile->GetGlobalGenerator()
       ->AddInstallComponent(resourceArgs.GetComponent().c_str());
     }
 
@@ -779,7 +834,7 @@ bool cmInstallCommand::HandleFilesMode(std::vector<std::string> const& args)
 {
   // This is the FILES mode.
   bool programs = (args[0] == "PROGRAMS");
-  cmInstallCommandArguments ica;
+  cmInstallCommandArguments ica(this->DefaultComponentName);
   cmCAStringVector files(&ica.Parser, programs ? "PROGRAMS" : "FILES");
   files.Follows(0);
   ica.ArgumentGroup.Follows(&files);
@@ -789,31 +844,74 @@ bool cmInstallCommand::HandleFilesMode(std::vector<std::string> const& args)
   if(!unknownArgs.empty())
     {
     // Unknown argument.
-    cmOStringStream e;
+    std::ostringstream e;
     e << args[0] << " given unknown argument \"" << unknownArgs[0] << "\".";
-    this->SetError(e.str().c_str());
+    this->SetError(e.str());
     return false;
     }
-  
+
+  const std::vector<std::string>& filesVector = files.GetVector();
+
   // Check if there is something to do.
-  if(files.GetVector().empty())
+  if(filesVector.empty())
     {
     return true;
     }
 
-  if(!ica.GetRename().empty() && files.GetVector().size() > 1)
+  if(!ica.GetRename().empty() && filesVector.size() > 1)
     {
     // The rename option works only with one file.
-    cmOStringStream e;
+    std::ostringstream e;
     e << args[0] << " given RENAME option with more than one file.";
-    this->SetError(e.str().c_str());
+    this->SetError(e.str());
     return false;
     }
 
   std::vector<std::string> absFiles;
-  if (!this->MakeFilesFullPath(args[0].c_str(), files.GetVector(), absFiles))
+  if (!this->MakeFilesFullPath(args[0].c_str(), filesVector, absFiles))
     {
     return false;
+    }
+
+  cmPolicies::PolicyStatus status =
+      this->Makefile->GetPolicyStatus(cmPolicies::CMP0062);
+
+  cmGlobalGenerator *gg = this->Makefile->GetGlobalGenerator();
+  for(std::vector<std::string>::const_iterator fileIt = filesVector.begin();
+      fileIt != filesVector.end(); ++fileIt)
+    {
+    if (gg->IsExportedTargetsFile(*fileIt))
+      {
+      const char *modal = 0;
+      std::ostringstream e;
+      cmake::MessageType messageType = cmake::AUTHOR_WARNING;
+
+      switch(status)
+        {
+        case cmPolicies::WARN:
+          e << cmPolicies::GetPolicyWarning(cmPolicies::CMP0062) << "\n";
+          modal = "should";
+        case cmPolicies::OLD:
+          break;
+        case cmPolicies::REQUIRED_IF_USED:
+        case cmPolicies::REQUIRED_ALWAYS:
+        case cmPolicies::NEW:
+          modal = "may";
+          messageType = cmake::FATAL_ERROR;
+        }
+      if (modal)
+        {
+        e << "The file\n  " << *fileIt << "\nwas generated by the export() "
+          "command.  It " << modal << " not be installed with the "
+          "install() command.  Use the install(EXPORT) mechanism "
+          "instead.  See the cmake-packages(7) manual for more.\n";
+        this->Makefile->IssueMessage(messageType, e.str());
+        if (messageType == cmake::FATAL_ERROR)
+          {
+          return false;
+          }
+        }
+      }
     }
 
   if (!ica.Finalize())
@@ -824,18 +922,18 @@ bool cmInstallCommand::HandleFilesMode(std::vector<std::string> const& args)
   if(ica.GetDestination().empty())
     {
     // A destination is required.
-    cmOStringStream e;
+    std::ostringstream e;
     e << args[0] << " given no DESTINATION!";
-    this->SetError(e.str().c_str());
+    this->SetError(e.str());
     return false;
     }
 
   // Create the files install generator.
   this->Makefile->AddInstallGenerator(
-                         CreateInstallFilesGenerator(absFiles, ica, programs));
+    CreateInstallFilesGenerator(this->Makefile, absFiles, ica, programs));
 
   //Tell the global generator about any installation component names specified.
-  this->Makefile->GetLocalGenerator()->GetGlobalGenerator()
+  this->Makefile->GetGlobalGenerator()
                              ->AddInstallComponent(ica.GetComponent().c_str());
 
   return true;
@@ -851,12 +949,13 @@ cmInstallCommand::HandleDirectoryMode(std::vector<std::string> const& args)
   Doing doing = DoingDirs;
   bool in_match_mode = false;
   bool optional = false;
+  bool message_never = false;
   std::vector<std::string> dirs;
   const char* destination = 0;
   std::string permissions_file;
   std::string permissions_dir;
   std::vector<std::string> configurations;
-  std::string component = "Unspecified";
+  std::string component = this->DefaultComponentName;
   std::string literal_args;
   for(unsigned int i=1; i < args.size(); ++i)
     {
@@ -864,10 +963,10 @@ cmInstallCommand::HandleDirectoryMode(std::vector<std::string> const& args)
       {
       if(in_match_mode)
         {
-        cmOStringStream e;
+        std::ostringstream e;
         e << args[0] << " does not allow \""
           << args[i] << "\" after PATTERN or REGEX.";
-        this->SetError(e.str().c_str());
+        this->SetError(e.str());
         return false;
         }
 
@@ -878,15 +977,30 @@ cmInstallCommand::HandleDirectoryMode(std::vector<std::string> const& args)
       {
       if(in_match_mode)
         {
-        cmOStringStream e;
+        std::ostringstream e;
         e << args[0] << " does not allow \""
           << args[i] << "\" after PATTERN or REGEX.";
-        this->SetError(e.str().c_str());
+        this->SetError(e.str());
         return false;
         }
 
       // Mark the rule as optional.
       optional = true;
+      doing = DoingNone;
+      }
+    else if(args[i] == "MESSAGE_NEVER")
+      {
+      if(in_match_mode)
+        {
+        std::ostringstream e;
+        e << args[0] << " does not allow \""
+          << args[i] << "\" after PATTERN or REGEX.";
+        this->SetError(e.str());
+        return false;
+        }
+
+      // Mark the rule as quiet.
+      message_never = true;
       doing = DoingNone;
       }
     else if(args[i] == "PATTERN")
@@ -906,10 +1020,10 @@ cmInstallCommand::HandleDirectoryMode(std::vector<std::string> const& args)
       // Add this property to the current match rule.
       if(!in_match_mode || doing == DoingPattern || doing == DoingRegex)
         {
-        cmOStringStream e;
+        std::ostringstream e;
         e << args[0] << " does not allow \""
           << args[i] << "\" before a PATTERN or REGEX is given.";
-        this->SetError(e.str().c_str());
+        this->SetError(e.str());
         return false;
         }
       literal_args += " EXCLUDE";
@@ -919,10 +1033,10 @@ cmInstallCommand::HandleDirectoryMode(std::vector<std::string> const& args)
       {
       if(!in_match_mode)
         {
-        cmOStringStream e;
+        std::ostringstream e;
         e << args[0] << " does not allow \""
           << args[i] << "\" before a PATTERN or REGEX is given.";
-        this->SetError(e.str().c_str());
+        this->SetError(e.str());
         return false;
         }
 
@@ -934,10 +1048,10 @@ cmInstallCommand::HandleDirectoryMode(std::vector<std::string> const& args)
       {
       if(in_match_mode)
         {
-        cmOStringStream e;
+        std::ostringstream e;
         e << args[0] << " does not allow \""
           << args[i] << "\" after PATTERN or REGEX.";
-        this->SetError(e.str().c_str());
+        this->SetError(e.str());
         return false;
         }
 
@@ -948,10 +1062,10 @@ cmInstallCommand::HandleDirectoryMode(std::vector<std::string> const& args)
       {
       if(in_match_mode)
         {
-        cmOStringStream e;
+        std::ostringstream e;
         e << args[0] << " does not allow \""
           << args[i] << "\" after PATTERN or REGEX.";
-        this->SetError(e.str().c_str());
+        this->SetError(e.str());
         return false;
         }
 
@@ -962,10 +1076,10 @@ cmInstallCommand::HandleDirectoryMode(std::vector<std::string> const& args)
       {
       if(in_match_mode)
         {
-        cmOStringStream e;
+        std::ostringstream e;
         e << args[0] << " does not allow \""
           << args[i] << "\" after PATTERN or REGEX.";
-        this->SetError(e.str().c_str());
+        this->SetError(e.str());
         return false;
         }
 
@@ -977,10 +1091,10 @@ cmInstallCommand::HandleDirectoryMode(std::vector<std::string> const& args)
       {
       if(in_match_mode)
         {
-        cmOStringStream e;
+        std::ostringstream e;
         e << args[0] << " does not allow \""
           << args[i] << "\" after PATTERN or REGEX.";
-        this->SetError(e.str().c_str());
+        this->SetError(e.str());
         return false;
         }
 
@@ -992,10 +1106,10 @@ cmInstallCommand::HandleDirectoryMode(std::vector<std::string> const& args)
       {
       if(in_match_mode)
         {
-        cmOStringStream e;
+        std::ostringstream e;
         e << args[0] << " does not allow \""
           << args[i] << "\" after PATTERN or REGEX.";
-        this->SetError(e.str().c_str());
+        this->SetError(e.str());
         return false;
         }
 
@@ -1006,10 +1120,10 @@ cmInstallCommand::HandleDirectoryMode(std::vector<std::string> const& args)
       {
       if(in_match_mode)
         {
-        cmOStringStream e;
+        std::ostringstream e;
         e << args[0] << " does not allow \""
           << args[i] << "\" after PATTERN or REGEX.";
-        this->SetError(e.str().c_str());
+        this->SetError(e.str());
         return false;
         }
 
@@ -1022,19 +1136,19 @@ cmInstallCommand::HandleDirectoryMode(std::vector<std::string> const& args)
       std::string dir = args[i];
       if(!cmSystemTools::FileIsFullPath(dir.c_str()))
         {
-        dir = this->Makefile->GetCurrentDirectory();
+        dir = this->Makefile->GetCurrentSourceDirectory();
         dir += "/";
         dir += args[i];
         }
 
       // Make sure the name is a directory.
       if(cmSystemTools::FileExists(dir.c_str()) &&
-         !cmSystemTools::FileIsDirectory(dir.c_str()))
+         !cmSystemTools::FileIsDirectory(dir))
         {
-        cmOStringStream e;
+        std::ostringstream e;
         e << args[0] << " given non-directory \""
           << args[i] << "\" to install.";
-        this->SetError(e.str().c_str());
+        this->SetError(e.str());
         return false;
         }
 
@@ -1087,10 +1201,10 @@ cmInstallCommand::HandleDirectoryMode(std::vector<std::string> const& args)
      // Check the requested permission.
      if(!cmInstallCommandArguments::CheckPermissions(args[i],permissions_file))
         {
-        cmOStringStream e;
+        std::ostringstream e;
         e << args[0] << " given invalid file permission \""
           << args[i] << "\".";
-        this->SetError(e.str().c_str());
+        this->SetError(e.str());
         return false;
         }
       }
@@ -1099,10 +1213,10 @@ cmInstallCommand::HandleDirectoryMode(std::vector<std::string> const& args)
       // Check the requested permission.
       if(!cmInstallCommandArguments::CheckPermissions(args[i],permissions_dir))
         {
-        cmOStringStream e;
+        std::ostringstream e;
         e << args[0] << " given invalid directory permission \""
           << args[i] << "\".";
-        this->SetError(e.str().c_str());
+        this->SetError(e.str());
         return false;
         }
       }
@@ -1111,19 +1225,19 @@ cmInstallCommand::HandleDirectoryMode(std::vector<std::string> const& args)
       // Check the requested permission.
       if(!cmInstallCommandArguments::CheckPermissions(args[i], literal_args))
         {
-        cmOStringStream e;
+        std::ostringstream e;
         e << args[0] << " given invalid permission \""
           << args[i] << "\".";
-        this->SetError(e.str().c_str());
+        this->SetError(e.str());
         return false;
         }
       }
     else
       {
       // Unknown argument.
-      cmOStringStream e;
+      std::ostringstream e;
       e << args[0] << " given unknown argument \"" << args[i] << "\".";
-      this->SetError(e.str().c_str());
+      this->SetError(e.str());
       return false;
       }
     }
@@ -1142,11 +1256,14 @@ cmInstallCommand::HandleDirectoryMode(std::vector<std::string> const& args)
   if(!destination)
     {
     // A destination is required.
-    cmOStringStream e;
+    std::ostringstream e;
     e << args[0] << " given no DESTINATION!";
-    this->SetError(e.str().c_str());
+    this->SetError(e.str());
     return false;
     }
+
+  cmInstallGenerator::MessageLevel message =
+    cmInstallGenerator::SelectMessageLevel(this->Makefile, message_never);
 
   // Create the directory install generator.
   this->Makefile->AddInstallGenerator(
@@ -1155,12 +1272,13 @@ cmInstallCommand::HandleDirectoryMode(std::vector<std::string> const& args)
                                     permissions_dir.c_str(),
                                     configurations,
                                     component.c_str(),
+                                    message,
                                     literal_args.c_str(),
                                     optional));
 
   // Tell the global generator about any installation component names
   // specified.
-  this->Makefile->GetLocalGenerator()->GetGlobalGenerator()
+  this->Makefile->GetGlobalGenerator()
     ->AddInstallComponent(component.c_str());
 
   return true;
@@ -1170,9 +1288,11 @@ cmInstallCommand::HandleDirectoryMode(std::vector<std::string> const& args)
 bool cmInstallCommand::HandleExportMode(std::vector<std::string> const& args)
 {
   // This is the EXPORT mode.
-  cmInstallCommandArguments ica;
+  cmInstallCommandArguments ica(this->DefaultComponentName);
   cmCAString exp(&ica.Parser, "EXPORT");
   cmCAString name_space(&ica.Parser, "NAMESPACE", &ica.ArgumentGroup);
+  cmCAEnabler exportOld(&ica.Parser, "EXPORT_LINK_INTERFACE_LIBRARIES",
+                        &ica.ArgumentGroup);
   cmCAString filename(&ica.Parser, "FILE", &ica.ArgumentGroup);
   exp.Follows(0);
 
@@ -1183,9 +1303,9 @@ bool cmInstallCommand::HandleExportMode(std::vector<std::string> const& args)
   if (!unknownArgs.empty())
     {
     // Unknown argument.
-    cmOStringStream e;
+    std::ostringstream e;
     e << args[0] << " given unknown argument \"" << unknownArgs[0] << "\".";
-    this->SetError(e.str().c_str());
+    this->SetError(e.str());
     return false;
     }
 
@@ -1198,9 +1318,9 @@ bool cmInstallCommand::HandleExportMode(std::vector<std::string> const& args)
   if(ica.GetDestination().empty())
     {
     // A destination is required.
-    cmOStringStream e;
+    std::ostringstream e;
     e << args[0] << " given no DESTINATION!";
-    this->SetError(e.str().c_str());
+    this->SetError(e.str());
     return false;
     }
 
@@ -1208,11 +1328,11 @@ bool cmInstallCommand::HandleExportMode(std::vector<std::string> const& args)
   std::string fname = filename.GetString();
   if(fname.find_first_of(":/\\") != fname.npos)
     {
-    cmOStringStream e;
+    std::ostringstream e;
     e << args[0] << " given invalid export file name \"" << fname << "\".  "
       << "The FILE argument may not contain a path.  "
       << "Specify the path in the DESTINATION argument.";
-    this->SetError(e.str().c_str());
+    this->SetError(e.str());
     return false;
     }
 
@@ -1220,10 +1340,10 @@ bool cmInstallCommand::HandleExportMode(std::vector<std::string> const& args)
   if(!fname.empty() &&
      cmSystemTools::GetFilenameLastExtension(fname) != ".cmake")
     {
-    cmOStringStream e;
+    std::ostringstream e;
     e << args[0] << " given invalid export file name \"" << fname << "\".  "
       << "The FILE argument must specify a name ending in \".cmake\".";
-    this->SetError(e.str().c_str());
+    this->SetError(e.str());
     return false;
     }
 
@@ -1235,23 +1355,54 @@ bool cmInstallCommand::HandleExportMode(std::vector<std::string> const& args)
 
     if(fname.find_first_of(":/\\") != fname.npos)
       {
-      cmOStringStream e;
+      std::ostringstream e;
       e << args[0] << " given export name \"" << exp.GetString() << "\".  "
         << "This name cannot be safely converted to a file name.  "
         << "Specify a different export name or use the FILE option to set "
         << "a file name explicitly.";
-      this->SetError(e.str().c_str());
+      this->SetError(e.str());
       return false;
       }
     }
 
+  cmExportSet *exportSet = this->Makefile->GetGlobalGenerator()
+                                         ->GetExportSets()[exp.GetString()];
+  if (exportOld.IsEnabled())
+    {
+    for(std::vector<cmTargetExport*>::const_iterator
+          tei = exportSet->GetTargetExports()->begin();
+        tei != exportSet->GetTargetExports()->end(); ++tei)
+      {
+      cmTargetExport const* te = *tei;
+      cmTarget* tgt = this->Makefile->FindTarget(te->TargetName);
+      const bool newCMP0022Behavior =
+                      tgt->GetPolicyStatusCMP0022() != cmPolicies::WARN
+                   && tgt->GetPolicyStatusCMP0022() != cmPolicies::OLD;
+
+      if(!newCMP0022Behavior)
+        {
+        std::ostringstream e;
+        e << "INSTALL(EXPORT) given keyword \""
+          << "EXPORT_LINK_INTERFACE_LIBRARIES" << "\", but target \""
+          << te->TargetName
+          << "\" does not have policy CMP0022 set to NEW.";
+        this->SetError(e.str());
+        return false;
+        }
+      }
+    }
+
+  cmInstallGenerator::MessageLevel message =
+    cmInstallGenerator::SelectMessageLevel(this->Makefile);
+
   // Create the export install generator.
   cmInstallExportGenerator* exportGenerator =
     new cmInstallExportGenerator(
-      exp.GetCString(), ica.GetDestination().c_str(),
+      exportSet,
+      ica.GetDestination().c_str(),
       ica.GetPermissions().c_str(), ica.GetConfigurations(),
-      ica.GetComponent().c_str(), fname.c_str(),
-      name_space.GetCString(), this->Makefile);
+      ica.GetComponent().c_str(), message, fname.c_str(),
+      name_space.GetCString(), exportOld.IsEnabled());
   this->Makefile->AddInstallGenerator(exportGenerator);
 
   return true;
@@ -1266,19 +1417,20 @@ bool cmInstallCommand::MakeFilesFullPath(const char* modeName,
       ++fileIt)
     {
     std::string file = (*fileIt);
-    if(!cmSystemTools::FileIsFullPath(file.c_str()))
+    std::string::size_type gpos = cmGeneratorExpression::Find(file);
+    if(gpos != 0 && !cmSystemTools::FileIsFullPath(file.c_str()))
       {
-      file = this->Makefile->GetCurrentDirectory();
+      file = this->Makefile->GetCurrentSourceDirectory();
       file += "/";
       file += *fileIt;
       }
 
     // Make sure the file is not a directory.
-    if(cmSystemTools::FileIsDirectory(file.c_str()))
+    if(gpos == file.npos && cmSystemTools::FileIsDirectory(file))
       {
-      cmOStringStream e;
+      std::ostringstream e;
       e << modeName << " given directory \"" << (*fileIt) << "\" to install.";
-      this->SetError(e.str().c_str());
+      this->SetError(e.str());
       return false;
       }
     // Store the file for installation.
@@ -1296,7 +1448,7 @@ bool cmInstallCommand::CheckCMP0006(bool& failure)
       {
       this->Makefile->IssueMessage(
         cmake::AUTHOR_WARNING,
-        this->Makefile->GetPolicies()->GetPolicyWarning(cmPolicies::CMP0006)
+        cmPolicies::GetPolicyWarning(cmPolicies::CMP0006)
         );
       }
     case cmPolicies::OLD:
@@ -1310,8 +1462,7 @@ bool cmInstallCommand::CheckCMP0006(bool& failure)
       failure = true;
       this->Makefile->IssueMessage(
         cmake::FATAL_ERROR,
-        this->Makefile->GetPolicies()
-        ->GetRequiredPolicyError(cmPolicies::CMP0006)
+        cmPolicies::GetRequiredPolicyError(cmPolicies::CMP0006)
         );
       break;
     }

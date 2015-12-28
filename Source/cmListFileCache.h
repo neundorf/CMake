@@ -14,6 +14,8 @@
 
 #include "cmStandardIncludes.h"
 
+#include "cmState.h"
+
 /** \class cmListFileCache
  * \brief A class to cache list file contents.
  *
@@ -22,26 +24,37 @@
  */
 
 class cmMakefile;
- 
+
+struct cmCommandContext
+{
+  std::string Name;
+  long Line;
+  cmCommandContext(): Name(), Line(0) {}
+};
+
 struct cmListFileArgument
 {
-  cmListFileArgument(): Value(), Quoted(false), FilePath(0), Line(0) {}
-  cmListFileArgument(const cmListFileArgument& r):
-    Value(r.Value), Quoted(r.Quoted), FilePath(r.FilePath), Line(r.Line) {}
-  cmListFileArgument(const std::string& v, bool q, const char* file,
-                     long line): Value(v), Quoted(q),
-                                 FilePath(file), Line(line) {}
+  enum Delimiter
+    {
+    Unquoted,
+    Quoted,
+    Bracket
+    };
+  cmListFileArgument(): Value(), Delim(Unquoted), Line(0) {}
+  cmListFileArgument(const cmListFileArgument& r)
+    : Value(r.Value), Delim(r.Delim), Line(r.Line) {}
+  cmListFileArgument(const std::string& v, Delimiter d, long line)
+    : Value(v), Delim(d), Line(line) {}
   bool operator == (const cmListFileArgument& r) const
     {
-    return (this->Value == r.Value) && (this->Quoted == r.Quoted);
+    return (this->Value == r.Value) && (this->Delim == r.Delim);
     }
   bool operator != (const cmListFileArgument& r) const
     {
     return !(*this == r);
     }
   std::string Value;
-  bool Quoted;
-  const char* FilePath;
+  Delimiter Delim;
   long Line;
 };
 
@@ -51,28 +64,48 @@ struct cmListFileContext
   std::string FilePath;
   long Line;
   cmListFileContext(): Name(), FilePath(), Line(0) {}
+
+  static cmListFileContext FromCommandContext(cmCommandContext const& lfcc,
+                                              std::string const& fileName)
+  {
+    cmListFileContext lfc;
+    lfc.FilePath = fileName;
+    lfc.Line = lfcc.Line;
+    lfc.Name = lfcc.Name;
+    return lfc;
+  }
 };
 
 std::ostream& operator<<(std::ostream&, cmListFileContext const&);
+bool operator<(const cmListFileContext& lhs, const cmListFileContext& rhs);
+bool operator==(cmListFileContext const& lhs, cmListFileContext const& rhs);
+bool operator!=(cmListFileContext const& lhs, cmListFileContext const& rhs);
 
-struct cmListFileFunction: public cmListFileContext
+struct cmListFileFunction: public cmCommandContext
 {
   std::vector<cmListFileArgument> Arguments;
 };
 
-class cmListFileBacktrace: public std::vector<cmListFileContext> {};
+class cmListFileBacktrace
+{
+  public:
+    cmListFileBacktrace(cmState::Snapshot snapshot = cmState::Snapshot(),
+                        cmCommandContext const& cc = cmCommandContext());
+    ~cmListFileBacktrace();
+
+    void PrintTitle(std::ostream& out) const;
+    void PrintCallStack(std::ostream& out) const;
+  private:
+    cmCommandContext Context;
+    cmState::Snapshot Snapshot;
+};
 
 struct cmListFile
 {
-  cmListFile() 
-    :ModifiedTime(0) 
-    {
-    }
-  bool ParseFile(const char* path, 
+  bool ParseFile(const char* path,
                  bool topLevel,
                  cmMakefile *mf);
 
-  long int ModifiedTime;
   std::vector<cmListFileFunction> Functions;
 };
 

@@ -33,7 +33,10 @@ public:
    * Construct for a source file created in a given cmMakefile
    * instance with an initial name.
    */
-  cmSourceFileLocation(cmMakefile* mf, const char* name);
+  cmSourceFileLocation(cmMakefile const* mf, const std::string& name);
+  cmSourceFileLocation();
+  cmSourceFileLocation(const cmSourceFileLocation& loc);
+  cmSourceFileLocation& operator=(const cmSourceFileLocation& loc);
 
   /**
    * Return whether the givne source file location could refers to the
@@ -68,7 +71,7 @@ public:
    * Otherwise it will be a relative path (possibly empty) that is
    * either with respect to the source or build tree.
    */
-  const char* GetDirectory() const { return this->Directory.c_str(); }
+  const std::string& GetDirectory() const { return this->Directory; }
 
   /**
    * Get the file name as best is currently known.  If
@@ -76,14 +79,14 @@ public:
    * final name (but could be).  Otherwise the returned name is the
    * final name.
    */
-  const char* GetName() const { return this->Name.c_str(); }
+  const std::string& GetName() const { return this->Name; }
 
   /**
    * Get the cmMakefile instance for which the source file was created.
    */
-  cmMakefile* GetMakefile() const { return this->Makefile; }
+  cmMakefile const* GetMakefile() const { return this->Makefile; }
 private:
-  cmMakefile* Makefile;
+  cmMakefile const* Makefile;
   bool AmbiguousDirectory;
   bool AmbiguousExtension;
   std::string Directory;
@@ -93,9 +96,7 @@ private:
 
   // Update the location with additional knowledge.
   void Update(cmSourceFileLocation const& loc);
-  void Update(const char* name);
-  void UpdateExtension(const char* name);
-  void UpdateDirectory(const char* name);
+  void UpdateExtension(const std::string& name);
 };
 
 #endif

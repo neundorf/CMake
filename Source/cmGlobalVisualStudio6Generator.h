@@ -13,8 +13,7 @@
 #define cmGlobalVisualStudio6Generator_h
 
 #include "cmGlobalVisualStudioGenerator.h"
-
-class cmTarget;
+#include "cmGlobalGeneratorFactory.h"
 
 /** \class cmGlobalVisualStudio6Generator
  * \brief Write a Unix makefiles.
@@ -24,46 +23,49 @@ class cmTarget;
 class cmGlobalVisualStudio6Generator : public cmGlobalVisualStudioGenerator
 {
 public:
-  cmGlobalVisualStudio6Generator();
-  static cmGlobalGenerator* New() { 
-    return new cmGlobalVisualStudio6Generator; }
-  
+  cmGlobalVisualStudio6Generator(cmake* cm);
+  static cmGlobalGeneratorFactory* NewFactory() {
+    return new cmGlobalGeneratorSimpleFactory
+      <cmGlobalVisualStudio6Generator>(); }
+
   ///! Get the name for the generator.
-  virtual const char* GetName() const {
+  virtual std::string GetName() const {
     return cmGlobalVisualStudio6Generator::GetActualName();}
-  static const char* GetActualName() {return "Visual Studio 6";}
+  static std::string GetActualName() {return "Visual Studio 6";}
 
   /** Get the documentation entry for this generator.  */
-  virtual void GetDocumentation(cmDocumentationEntry& entry) const;
-  
-  ///! Create a local generator appropriate to this Global Generator
-  virtual cmLocalGenerator *CreateLocalGenerator();
+  static void GetDocumentation(cmDocumentationEntry& entry);
 
   /**
-   * Try to determine system infomation such as shared library
-   * extension, pthreads, byte order etc.  
+   * Utilized by the generator factory to determine if this generator
+   * supports toolsets.
    */
-  virtual void EnableLanguage(std::vector<std::string>const& languages, 
+  static bool SupportsToolset() { return false; }
+
+  ///! Create a local generator appropriate to this Global Generator
+  virtual cmLocalGenerator *CreateLocalGenerator(cmMakefile* mf);
+
+  /**
+   * Try to determine system information such as shared library
+   * extension, pthreads, byte order etc.
+   */
+  virtual void EnableLanguage(std::vector<std::string>const& languages,
                               cmMakefile *, bool optional);
 
   /**
    * Try running cmake and building a file. This is used for dynalically
    * loaded commands, not as part of the usual build process.
    */
-  virtual std::string GenerateBuildCommand(const char* makeProgram,
-                                           const char *projectName,
-                                           const char* additionalOptions, 
-                                           const char *targetName, 
-                                           const char* config,
-                                           bool ignoreErrors,
-                                           bool fast);
-
-  /**
-   * Generate the all required files for building this project/tree. This
-   * basically creates a series of LocalGenerators for each directory and
-   * requests that they Generate.  
-   */
-  virtual void Generate();
+  virtual void GenerateBuildCommand(
+    std::vector<std::string>& makeCommand,
+    const std::string& makeProgram,
+    const std::string& projectName,
+    const std::string& projectDir,
+    const std::string& targetName,
+    const std::string& config,
+    bool fast, bool verbose,
+    std::vector<std::string> const& makeOptions = std::vector<std::string>()
+    );
 
   /**
    * Generate the DSW workspace file.
@@ -76,27 +78,36 @@ public:
                             std::vector<cmLocalGenerator*>& generators);
 
   /** Append the subdirectory for the given configuration.  */
-  virtual void AppendDirectoryForConfig(const char* prefix,
-                                        const char* config,
-                                        const char* suffix,
+  virtual void AppendDirectoryForConfig(const std::string& prefix,
+                                        const std::string& config,
+                                        const std::string& suffix,
                                         std::string& dir);
 
   ///! What is the configurations directory variable called?
-  virtual const char* GetCMakeCFGInitDirectory()  { return "$(IntDir)"; }
+  virtual const char* GetCMakeCFGIntDir() const { return "$(IntDir)"; }
+
+  virtual void FindMakeProgram(cmMakefile*);
 
 protected:
+  virtual void Generate();
   virtual const char* GetIDEVersion() { return "6.0"; }
 private:
+  virtual std::string GetVSMakeProgram() { return this->GetMSDevCommand(); }
   void GenerateConfigurations(cmMakefile* mf);
   void WriteDSWFile(std::ostream& fout);
   void WriteDSWHeader(std::ostream& fout);
-  void WriteProject(std::ostream& fout, 
-                    const char* name, const char* path, cmTarget &t);
-  void WriteExternalProject(std::ostream& fout, 
-                            const char* name, const char* path,
-                            const std::set<cmStdString>& dependencies);
+  void WriteProject(std::ostream& fout,
+                    const std::string& name, const char* path,
+                    cmGeneratorTarget const* t);
+  void WriteExternalProject(std::ostream& fout,
+                            const std::string& name, const char* path,
+                            const std::set<std::string>& dependencies);
   void WriteDSWFooter(std::ostream& fout);
-  virtual std::string WriteUtilityDepend(cmTarget* target);
+  virtual std::string WriteUtilityDepend(const cmGeneratorTarget *target);
+  std::string MSDevCommand;
+  bool MSDevCommandInitialized;
+  std::string const& GetMSDevCommand();
+  std::string FindMSDevCommand();
 };
 
 #endif

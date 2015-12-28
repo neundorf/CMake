@@ -27,7 +27,7 @@ public:
   /**
    * This is a virtual constructor for the command.
    */
-  virtual cmCommand* Clone() 
+  virtual cmCommand* Clone()
     {
     return new cmExecProgramCommand;
     }
@@ -38,58 +38,23 @@ public:
    */
   virtual bool InitialPass(std::vector<std::string> const& args,
                            cmExecutionStatus &status);
-  
+
   /**
    * The name of the command as specified in CMakeList.txt.
    */
-  virtual const char* GetName() 
+  virtual std::string GetName() const
     {return "exec_program";}
-  
+
   /**
    * This determines if the command is invoked when in script mode.
    */
-  virtual bool IsScriptable() { return true; }
-
-  /**
-   * Succinct documentation.
-   */
-  virtual const char* GetTerseDocumentation() 
-    {
-    return 
-      "Deprecated.  Use the execute_process() command instead.";
-    }
-  
-  /**
-   * More documentation.
-   */
-  virtual const char* GetFullDocumentation()
-    {
-    return
-      "Run an executable program during the processing of the CMakeList.txt"
-      " file.\n"
-      "  exec_program(Executable [directory in which to run]\n"
-      "               [ARGS <arguments to executable>]\n"
-      "               [OUTPUT_VARIABLE <var>]\n"
-      "               [RETURN_VALUE <var>])\n"
-      "The executable is run in the optionally specified directory.  The "
-      "executable can include arguments if it is double quoted, but it is "
-      "better to use the optional ARGS argument to specify arguments to the "
-      "program.   This is because cmake will then be able to escape spaces "
-      "in the executable path.  An optional argument OUTPUT_VARIABLE "
-      "specifies a variable in which to store the output. "
-      "To capture the return value of the execution, provide a RETURN_VALUE. "
-      "If OUTPUT_VARIABLE is specified, then no output will go to the "
-      "stdout/stderr of the console running cmake.\n"
-      ;
-    }
-  
-  /** This command is kept for compatibility with older CMake versions. */
-  virtual bool IsDiscouraged()
-    {
-    return true;
-    }
+  virtual bool IsScriptable() const { return true; }
 
   cmTypeMacro(cmExecProgramCommand, cmCommand);
+private:
+  static bool RunCommand(const char* command, std::string& output,
+                         int &retVal, const char* directory = 0,
+                         bool verbose = true);
 };
 
 #endif

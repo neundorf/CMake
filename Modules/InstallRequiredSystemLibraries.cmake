@@ -1,30 +1,50 @@
-# By including this file, all library files listed in the variable
-# CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS will be installed with
-# INSTALL(PROGRAMS ...) into bin for WIN32 and lib
-# for non-WIN32. If CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP is set to TRUE
-# before including this file, then the INSTALL command is not called.
-# The user can use the variable CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS to use a
-# custom install command and install them however they want.
-# If it is the MSVC compiler, then the microsoft run
-# time libraries will be found and automatically added to the
-# CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS, and installed.
-# If CMAKE_INSTALL_DEBUG_LIBRARIES is set and it is the MSVC
-# compiler, then the debug libraries are installed when available.
-# If CMAKE_INSTALL_DEBUG_LIBRARIES_ONLY is set then only the debug
-# libraries are installed when both debug and release are available.
-# If CMAKE_INSTALL_MFC_LIBRARIES is set then the MFC run time
-# libraries are installed as well as the CRT run time libraries.
-# If CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION is set then the libraries are
-# installed to that directory rather than the default.
-# If CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_NO_WARNINGS is NOT set, then this file
-# warns about required files that do not exist. You can set this variable to
-# ON before including this file to avoid the warning. For example, the Visual
-# Studio Express editions do not include the redistributable files, so if you
-# include this file on a machine with only VS Express installed, you'll get
-# the warning.
+#.rst:
+# InstallRequiredSystemLibraries
+# ------------------------------
+#
+# Include this module to search for compiler-provided system runtime
+# libraries and add install rules for them.  Some optional variables
+# may be set prior to including the module to adjust behavior:
+#
+# ``CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS``
+#   Specify additional runtime libraries that may not be detected.
+#   After inclusion any detected libraries will be appended to this.
+#
+# ``CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP``
+#   Set to TRUE to skip calling the :command:`install(PROGRAMS)` command to
+#   allow the includer to specify its own install rule, using the value of
+#   ``CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS`` to get the list of libraries.
+#
+# ``CMAKE_INSTALL_DEBUG_LIBRARIES``
+#   Set to TRUE to install the debug runtime libraries when available
+#   with MSVC tools.
+#
+# ``CMAKE_INSTALL_DEBUG_LIBRARIES_ONLY``
+#   Set to TRUE to install only the debug runtime libraries with MSVC
+#   tools even if the release runtime libraries are also available.
+#
+# ``CMAKE_INSTALL_MFC_LIBRARIES``
+#   Set to TRUE to install the MSVC MFC runtime libraries.
+#
+# ``CMAKE_INSTALL_OPENMP_LIBRARIES``
+#   Set to TRUE to install the MSVC OpenMP runtime libraries
+#
+# ``CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION``
+#   Specify the :command:`install(PROGRAMS)` command ``DESTINATION``
+#   option.  If not specified, the default is ``bin`` on Windows
+#   and ``lib`` elsewhere.
+#
+# ``CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_NO_WARNINGS``
+#   Set to TRUE to disable warnings about required library files that
+#   do not exist.  (For example, Visual Studio Express editions may
+#   not provide the redistributable files.)
+#
+# ``CMAKE_INSTALL_SYSTEM_RUNTIME_COMPONENT``
+#   Specify the :command:`install(PROGRAMS)` command ``COMPONENT``
+#   option.  If not specified, no such option will be used.
 
 #=============================================================================
-# Copyright 2006-2009 Kitware, Inc.
+# Copyright 2006-2015 Kitware, Inc.
 #
 # Distributed under the OSI-approved BSD License (the "License");
 # see accompanying file Copyright.txt for details.
@@ -36,196 +56,219 @@
 # (To distribute this file outside of CMake, substitute the full
 #  License text for the above reference.)
 
-IF(MSVC)
-  FILE(TO_CMAKE_PATH "$ENV{SYSTEMROOT}" SYSTEMROOT)
+if(MSVC)
+  file(TO_CMAKE_PATH "$ENV{SYSTEMROOT}" SYSTEMROOT)
 
-  IF(CMAKE_CL_64)
-    IF(MSVC_VERSION GREATER 1599)
+  if(CMAKE_CL_64)
+    if(MSVC_VERSION GREATER 1599)
       # VS 10 and later:
-      SET(CMAKE_MSVC_ARCH x64)
-    ELSE()
+      set(CMAKE_MSVC_ARCH x64)
+    else()
       # VS 9 and earlier:
-      SET(CMAKE_MSVC_ARCH amd64)
-    ENDIF()
-  ELSE(CMAKE_CL_64)
-    SET(CMAKE_MSVC_ARCH x86)
-  ENDIF(CMAKE_CL_64)
+      set(CMAKE_MSVC_ARCH amd64)
+    endif()
+  else()
+    set(CMAKE_MSVC_ARCH x86)
+  endif()
 
-  GET_FILENAME_COMPONENT(devenv_dir "${CMAKE_MAKE_PROGRAM}" PATH)
-  GET_FILENAME_COMPONENT(base_dir "${devenv_dir}/../.." ABSOLUTE)
+  get_filename_component(devenv_dir "${CMAKE_MAKE_PROGRAM}" PATH)
+  get_filename_component(base_dir "${devenv_dir}/../.." ABSOLUTE)
 
-  IF(MSVC70)
-    SET(__install__libs
+  if(MSVC70)
+    set(__install__libs
       "${SYSTEMROOT}/system32/msvcp70.dll"
       "${SYSTEMROOT}/system32/msvcr70.dll"
       )
-  ENDIF(MSVC70)
+  endif()
 
-  IF(MSVC71)
-    SET(__install__libs
+  if(MSVC71)
+    set(__install__libs
       "${SYSTEMROOT}/system32/msvcp71.dll"
       "${SYSTEMROOT}/system32/msvcr71.dll"
       )
-  ENDIF(MSVC71)
+  endif()
 
-  IF(MSVC80)
+  if(MSVC80)
     # Find the runtime library redistribution directory.
-    GET_FILENAME_COMPONENT(msvc_install_dir
+    get_filename_component(msvc_install_dir
       "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\8.0;InstallDir]" ABSOLUTE)
-    FIND_PATH(MSVC80_REDIST_DIR NAMES ${CMAKE_MSVC_ARCH}/Microsoft.VC80.CRT/Microsoft.VC80.CRT.manifest
+    find_path(MSVC80_REDIST_DIR NAMES ${CMAKE_MSVC_ARCH}/Microsoft.VC80.CRT/Microsoft.VC80.CRT.manifest
       PATHS
         "${msvc_install_dir}/../../VC/redist"
         "${base_dir}/VC/redist"
       )
-    MARK_AS_ADVANCED(MSVC80_REDIST_DIR)
-    SET(MSVC80_CRT_DIR "${MSVC80_REDIST_DIR}/${CMAKE_MSVC_ARCH}/Microsoft.VC80.CRT")
+    mark_as_advanced(MSVC80_REDIST_DIR)
+    set(MSVC80_CRT_DIR "${MSVC80_REDIST_DIR}/${CMAKE_MSVC_ARCH}/Microsoft.VC80.CRT")
 
     # Install the manifest that allows DLLs to be loaded from the
     # directory containing the executable.
-    IF(NOT CMAKE_INSTALL_DEBUG_LIBRARIES_ONLY)
-      SET(__install__libs
+    if(NOT CMAKE_INSTALL_DEBUG_LIBRARIES_ONLY)
+      set(__install__libs
         "${MSVC80_CRT_DIR}/Microsoft.VC80.CRT.manifest"
         "${MSVC80_CRT_DIR}/msvcm80.dll"
         "${MSVC80_CRT_DIR}/msvcp80.dll"
         "${MSVC80_CRT_DIR}/msvcr80.dll"
         )
-    ENDIF(NOT CMAKE_INSTALL_DEBUG_LIBRARIES_ONLY)
+    else()
+      set(__install__libs)
+    endif()
 
-    IF(CMAKE_INSTALL_DEBUG_LIBRARIES)
-      SET(MSVC80_CRT_DIR
+    if(CMAKE_INSTALL_DEBUG_LIBRARIES)
+      set(MSVC80_CRT_DIR
         "${MSVC80_REDIST_DIR}/Debug_NonRedist/${CMAKE_MSVC_ARCH}/Microsoft.VC80.DebugCRT")
-      SET(__install__libs ${__install__libs}
+      set(__install__libs ${__install__libs}
         "${MSVC80_CRT_DIR}/Microsoft.VC80.DebugCRT.manifest"
         "${MSVC80_CRT_DIR}/msvcm80d.dll"
         "${MSVC80_CRT_DIR}/msvcp80d.dll"
         "${MSVC80_CRT_DIR}/msvcr80d.dll"
         )
-    ENDIF(CMAKE_INSTALL_DEBUG_LIBRARIES)
-  ENDIF(MSVC80)
+    endif()
+  endif()
 
-  IF(MSVC90)
+  if(MSVC90)
     # Find the runtime library redistribution directory.
-    GET_FILENAME_COMPONENT(msvc_install_dir
+    get_filename_component(msvc_install_dir
       "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\9.0;InstallDir]" ABSOLUTE)
-    GET_FILENAME_COMPONENT(msvc_express_install_dir
+    get_filename_component(msvc_express_install_dir
       "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VCExpress\\9.0;InstallDir]" ABSOLUTE)
-    FIND_PATH(MSVC90_REDIST_DIR NAMES ${CMAKE_MSVC_ARCH}/Microsoft.VC90.CRT/Microsoft.VC90.CRT.manifest
+    find_path(MSVC90_REDIST_DIR NAMES ${CMAKE_MSVC_ARCH}/Microsoft.VC90.CRT/Microsoft.VC90.CRT.manifest
       PATHS
         "${msvc_install_dir}/../../VC/redist"
         "${msvc_express_install_dir}/../../VC/redist"
         "${base_dir}/VC/redist"
       )
-    MARK_AS_ADVANCED(MSVC90_REDIST_DIR)
-    SET(MSVC90_CRT_DIR "${MSVC90_REDIST_DIR}/${CMAKE_MSVC_ARCH}/Microsoft.VC90.CRT")
+    mark_as_advanced(MSVC90_REDIST_DIR)
+    set(MSVC90_CRT_DIR "${MSVC90_REDIST_DIR}/${CMAKE_MSVC_ARCH}/Microsoft.VC90.CRT")
 
     # Install the manifest that allows DLLs to be loaded from the
     # directory containing the executable.
-    IF(NOT CMAKE_INSTALL_DEBUG_LIBRARIES_ONLY)
-      SET(__install__libs
+    if(NOT CMAKE_INSTALL_DEBUG_LIBRARIES_ONLY)
+      set(__install__libs
         "${MSVC90_CRT_DIR}/Microsoft.VC90.CRT.manifest"
         "${MSVC90_CRT_DIR}/msvcm90.dll"
         "${MSVC90_CRT_DIR}/msvcp90.dll"
         "${MSVC90_CRT_DIR}/msvcr90.dll"
         )
-    ENDIF(NOT CMAKE_INSTALL_DEBUG_LIBRARIES_ONLY)
+    else()
+      set(__install__libs)
+    endif()
 
-    IF(CMAKE_INSTALL_DEBUG_LIBRARIES)
-      SET(MSVC90_CRT_DIR
+    if(CMAKE_INSTALL_DEBUG_LIBRARIES)
+      set(MSVC90_CRT_DIR
         "${MSVC90_REDIST_DIR}/Debug_NonRedist/${CMAKE_MSVC_ARCH}/Microsoft.VC90.DebugCRT")
-      SET(__install__libs ${__install__libs}
+      set(__install__libs ${__install__libs}
         "${MSVC90_CRT_DIR}/Microsoft.VC90.DebugCRT.manifest"
         "${MSVC90_CRT_DIR}/msvcm90d.dll"
         "${MSVC90_CRT_DIR}/msvcp90d.dll"
         "${MSVC90_CRT_DIR}/msvcr90d.dll"
         )
-    ENDIF(CMAKE_INSTALL_DEBUG_LIBRARIES)
-  ENDIF(MSVC90)
+    endif()
+  endif()
 
-  MACRO(MSVCRT_FILES_FOR_VERSION version)
-    SET(v "${version}")
+  macro(MSVCRT_FILES_FOR_VERSION version)
+    set(v "${version}")
 
     # Find the runtime library redistribution directory.
-    GET_FILENAME_COMPONENT(msvc_install_dir
+    get_filename_component(msvc_install_dir
       "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\${v}.0;InstallDir]" ABSOLUTE)
-    FIND_PATH(MSVC${v}_REDIST_DIR NAMES ${CMAKE_MSVC_ARCH}/Microsoft.VC${v}0.CRT
+    find_path(MSVC${v}_REDIST_DIR NAMES ${CMAKE_MSVC_ARCH}/Microsoft.VC${v}0.CRT
       PATHS
         "${msvc_install_dir}/../../VC/redist"
         "${base_dir}/VC/redist"
         "$ENV{ProgramFiles}/Microsoft Visual Studio ${v}.0/VC/redist"
-        "$ENV{ProgramFiles(x86)}/Microsoft Visual Studio ${v}.0/VC/redist"
+        set(programfilesx86 "ProgramFiles(x86)")
+        "$ENV{${programfilesx86}}/Microsoft Visual Studio ${v}.0/VC/redist"
       )
-    MARK_AS_ADVANCED(MSVC${v}_REDIST_DIR)
-    SET(MSVC${v}_CRT_DIR "${MSVC${v}_REDIST_DIR}/${CMAKE_MSVC_ARCH}/Microsoft.VC${v}0.CRT")
+    mark_as_advanced(MSVC${v}_REDIST_DIR)
+    set(MSVC${v}_CRT_DIR "${MSVC${v}_REDIST_DIR}/${CMAKE_MSVC_ARCH}/Microsoft.VC${v}0.CRT")
 
-    IF(NOT CMAKE_INSTALL_DEBUG_LIBRARIES_ONLY)
-      SET(__install__libs
+    if(NOT CMAKE_INSTALL_DEBUG_LIBRARIES_ONLY)
+      set(__install__libs
         "${MSVC${v}_CRT_DIR}/msvcp${v}0.dll"
-        "${MSVC${v}_CRT_DIR}/msvcr${v}0.dll"
         )
-    ENDIF(NOT CMAKE_INSTALL_DEBUG_LIBRARIES_ONLY)
+      if(NOT v VERSION_LESS 14)
+        list(APPEND __install__libs "${MSVC${v}_CRT_DIR}/vcruntime${v}0.dll")
+      else()
+        list(APPEND __install__libs "${MSVC${v}_CRT_DIR}/msvcr${v}0.dll")
+      endif()
+    else()
+      set(__install__libs)
+    endif()
 
-    IF(CMAKE_INSTALL_DEBUG_LIBRARIES)
-      SET(MSVC${v}_CRT_DIR
+    if(CMAKE_INSTALL_DEBUG_LIBRARIES)
+      set(MSVC${v}_CRT_DIR
         "${MSVC${v}_REDIST_DIR}/Debug_NonRedist/${CMAKE_MSVC_ARCH}/Microsoft.VC${v}0.DebugCRT")
-      SET(__install__libs ${__install__libs}
+      set(__install__libs ${__install__libs}
         "${MSVC${v}_CRT_DIR}/msvcp${v}0d.dll"
-        "${MSVC${v}_CRT_DIR}/msvcr${v}0d.dll"
         )
-    ENDIF(CMAKE_INSTALL_DEBUG_LIBRARIES)
-  ENDMACRO()
+      if(NOT v VERSION_LESS 14)
+        list(APPEND __install__libs "${MSVC${v}_CRT_DIR}/vcruntime${v}0d.dll")
+      else()
+        list(APPEND __install__libs "${MSVC${v}_CRT_DIR}/msvcr${v}0d.dll")
+      endif()
+    endif()
+  endmacro()
 
-  IF(MSVC10)
+  if(MSVC10)
     MSVCRT_FILES_FOR_VERSION(10)
-  ENDIF()
+  endif()
 
-  IF(MSVC11)
+  if(MSVC11)
     MSVCRT_FILES_FOR_VERSION(11)
-  ENDIF()
+  endif()
 
-  IF(CMAKE_INSTALL_MFC_LIBRARIES)
-    IF(MSVC70)
-      SET(__install__libs ${__install__libs}
+  if(MSVC12)
+    MSVCRT_FILES_FOR_VERSION(12)
+  endif()
+
+  if(MSVC14)
+    MSVCRT_FILES_FOR_VERSION(14)
+  endif()
+
+  if(CMAKE_INSTALL_MFC_LIBRARIES)
+    if(MSVC70)
+      set(__install__libs ${__install__libs}
         "${SYSTEMROOT}/system32/mfc70.dll"
         )
-    ENDIF(MSVC70)
+    endif()
 
-    IF(MSVC71)
-      SET(__install__libs ${__install__libs}
+    if(MSVC71)
+      set(__install__libs ${__install__libs}
         "${SYSTEMROOT}/system32/mfc71.dll"
         )
-    ENDIF(MSVC71)
+    endif()
 
-    IF(MSVC80)
-      IF(CMAKE_INSTALL_DEBUG_LIBRARIES)
-        SET(MSVC80_MFC_DIR
+    if(MSVC80)
+      if(CMAKE_INSTALL_DEBUG_LIBRARIES)
+        set(MSVC80_MFC_DIR
           "${MSVC80_REDIST_DIR}/Debug_NonRedist/${CMAKE_MSVC_ARCH}/Microsoft.VC80.DebugMFC")
-        SET(__install__libs ${__install__libs}
+        set(__install__libs ${__install__libs}
           "${MSVC80_MFC_DIR}/Microsoft.VC80.DebugMFC.manifest"
           "${MSVC80_MFC_DIR}/mfc80d.dll"
           "${MSVC80_MFC_DIR}/mfc80ud.dll"
           "${MSVC80_MFC_DIR}/mfcm80d.dll"
           "${MSVC80_MFC_DIR}/mfcm80ud.dll"
           )
-      ENDIF(CMAKE_INSTALL_DEBUG_LIBRARIES)
+      endif()
 
-      SET(MSVC80_MFC_DIR "${MSVC80_REDIST_DIR}/${CMAKE_MSVC_ARCH}/Microsoft.VC80.MFC")
+      set(MSVC80_MFC_DIR "${MSVC80_REDIST_DIR}/${CMAKE_MSVC_ARCH}/Microsoft.VC80.MFC")
       # Install the manifest that allows DLLs to be loaded from the
       # directory containing the executable.
-      IF(NOT CMAKE_INSTALL_DEBUG_LIBRARIES_ONLY)
-        SET(__install__libs ${__install__libs}
+      if(NOT CMAKE_INSTALL_DEBUG_LIBRARIES_ONLY)
+        set(__install__libs ${__install__libs}
           "${MSVC80_MFC_DIR}/Microsoft.VC80.MFC.manifest"
           "${MSVC80_MFC_DIR}/mfc80.dll"
           "${MSVC80_MFC_DIR}/mfc80u.dll"
           "${MSVC80_MFC_DIR}/mfcm80.dll"
           "${MSVC80_MFC_DIR}/mfcm80u.dll"
           )
-      ENDIF(NOT CMAKE_INSTALL_DEBUG_LIBRARIES_ONLY)
+      endif()
 
       # include the language dll's for vs8 as well as the actuall dll's
-      SET(MSVC80_MFCLOC_DIR "${MSVC80_REDIST_DIR}/${CMAKE_MSVC_ARCH}/Microsoft.VC80.MFCLOC")
+      set(MSVC80_MFCLOC_DIR "${MSVC80_REDIST_DIR}/${CMAKE_MSVC_ARCH}/Microsoft.VC80.MFCLOC")
       # Install the manifest that allows DLLs to be loaded from the
       # directory containing the executable.
-      SET(__install__libs ${__install__libs}
+      set(__install__libs ${__install__libs}
         "${MSVC80_MFCLOC_DIR}/Microsoft.VC80.MFCLOC.manifest"
         "${MSVC80_MFCLOC_DIR}/mfc80chs.dll"
         "${MSVC80_MFCLOC_DIR}/mfc80cht.dll"
@@ -237,39 +280,39 @@ IF(MSVC)
         "${MSVC80_MFCLOC_DIR}/mfc80jpn.dll"
         "${MSVC80_MFCLOC_DIR}/mfc80kor.dll"
         )
-    ENDIF(MSVC80)
+    endif()
 
-    IF(MSVC90)
-      IF(CMAKE_INSTALL_DEBUG_LIBRARIES)
-        SET(MSVC90_MFC_DIR
+    if(MSVC90)
+      if(CMAKE_INSTALL_DEBUG_LIBRARIES)
+        set(MSVC90_MFC_DIR
           "${MSVC90_REDIST_DIR}/Debug_NonRedist/${CMAKE_MSVC_ARCH}/Microsoft.VC90.DebugMFC")
-        SET(__install__libs ${__install__libs}
+        set(__install__libs ${__install__libs}
           "${MSVC90_MFC_DIR}/Microsoft.VC90.DebugMFC.manifest"
           "${MSVC90_MFC_DIR}/mfc90d.dll"
           "${MSVC90_MFC_DIR}/mfc90ud.dll"
           "${MSVC90_MFC_DIR}/mfcm90d.dll"
           "${MSVC90_MFC_DIR}/mfcm90ud.dll"
           )
-      ENDIF(CMAKE_INSTALL_DEBUG_LIBRARIES)
+      endif()
 
-      SET(MSVC90_MFC_DIR "${MSVC90_REDIST_DIR}/${CMAKE_MSVC_ARCH}/Microsoft.VC90.MFC")
+      set(MSVC90_MFC_DIR "${MSVC90_REDIST_DIR}/${CMAKE_MSVC_ARCH}/Microsoft.VC90.MFC")
       # Install the manifest that allows DLLs to be loaded from the
       # directory containing the executable.
-      IF(NOT CMAKE_INSTALL_DEBUG_LIBRARIES_ONLY)
-        SET(__install__libs ${__install__libs}
+      if(NOT CMAKE_INSTALL_DEBUG_LIBRARIES_ONLY)
+        set(__install__libs ${__install__libs}
           "${MSVC90_MFC_DIR}/Microsoft.VC90.MFC.manifest"
           "${MSVC90_MFC_DIR}/mfc90.dll"
           "${MSVC90_MFC_DIR}/mfc90u.dll"
           "${MSVC90_MFC_DIR}/mfcm90.dll"
           "${MSVC90_MFC_DIR}/mfcm90u.dll"
           )
-      ENDIF(NOT CMAKE_INSTALL_DEBUG_LIBRARIES_ONLY)
+      endif()
 
       # include the language dll's for vs9 as well as the actuall dll's
-      SET(MSVC90_MFCLOC_DIR "${MSVC90_REDIST_DIR}/${CMAKE_MSVC_ARCH}/Microsoft.VC90.MFCLOC")
+      set(MSVC90_MFCLOC_DIR "${MSVC90_REDIST_DIR}/${CMAKE_MSVC_ARCH}/Microsoft.VC90.MFCLOC")
       # Install the manifest that allows DLLs to be loaded from the
       # directory containing the executable.
-      SET(__install__libs ${__install__libs}
+      set(__install__libs ${__install__libs}
         "${MSVC90_MFCLOC_DIR}/Microsoft.VC90.MFCLOC.manifest"
         "${MSVC90_MFCLOC_DIR}/mfc90chs.dll"
         "${MSVC90_MFCLOC_DIR}/mfc90cht.dll"
@@ -281,121 +324,182 @@ IF(MSVC)
         "${MSVC90_MFCLOC_DIR}/mfc90jpn.dll"
         "${MSVC90_MFCLOC_DIR}/mfc90kor.dll"
         )
-    ENDIF(MSVC90)
+    endif()
 
-    MACRO(MFC_FILES_FOR_VERSION version)
-      SET(v "${version}")
+    macro(MFC_FILES_FOR_VERSION version)
+      set(v "${version}")
 
-      IF(CMAKE_INSTALL_DEBUG_LIBRARIES)
-        SET(MSVC${v}_MFC_DIR
+      # Multi-Byte Character Set versions of MFC are available as optional
+      # addon since Visual Studio 12.  So for version 12 or higher, check
+      # whether they are available and exclude them if they are not.
+
+      if(CMAKE_INSTALL_DEBUG_LIBRARIES)
+        set(MSVC${v}_MFC_DIR
           "${MSVC${v}_REDIST_DIR}/Debug_NonRedist/${CMAKE_MSVC_ARCH}/Microsoft.VC${v}0.DebugMFC")
-        SET(__install__libs ${__install__libs}
-          "${MSVC${v}_MFC_DIR}/mfc${v}0d.dll"
+        set(__install__libs ${__install__libs}
           "${MSVC${v}_MFC_DIR}/mfc${v}0ud.dll"
-          "${MSVC${v}_MFC_DIR}/mfcm${v}0d.dll"
           "${MSVC${v}_MFC_DIR}/mfcm${v}0ud.dll"
           )
-      ENDIF(CMAKE_INSTALL_DEBUG_LIBRARIES)
+        if("${v}" LESS 12 OR EXISTS "${MSVC${v}_MFC_DIR}/mfc${v}0d.dll")
+          set(__install__libs ${__install__libs}
+            "${MSVC${v}_MFC_DIR}/mfc${v}0d.dll"
+            "${MSVC${v}_MFC_DIR}/mfcm${v}0d.dll"
+          )
+        endif()
+      endif()
 
-      SET(MSVC${v}_MFC_DIR "${MSVC${v}_REDIST_DIR}/${CMAKE_MSVC_ARCH}/Microsoft.VC${v}0.MFC")
-      IF(NOT CMAKE_INSTALL_DEBUG_LIBRARIES_ONLY)
-        SET(__install__libs ${__install__libs}
-          "${MSVC${v}_MFC_DIR}/mfc${v}0.dll"
+      set(MSVC${v}_MFC_DIR "${MSVC${v}_REDIST_DIR}/${CMAKE_MSVC_ARCH}/Microsoft.VC${v}0.MFC")
+      if(NOT CMAKE_INSTALL_DEBUG_LIBRARIES_ONLY)
+        set(__install__libs ${__install__libs}
           "${MSVC${v}_MFC_DIR}/mfc${v}0u.dll"
-          "${MSVC${v}_MFC_DIR}/mfcm${v}0.dll"
           "${MSVC${v}_MFC_DIR}/mfcm${v}0u.dll"
           )
-      ENDIF(NOT CMAKE_INSTALL_DEBUG_LIBRARIES_ONLY)
+        if("${v}" LESS 12 OR EXISTS "${MSVC${v}_MFC_DIR}/mfc${v}0.dll")
+          set(__install__libs ${__install__libs}
+            "${MSVC${v}_MFC_DIR}/mfc${v}0.dll"
+            "${MSVC${v}_MFC_DIR}/mfcm${v}0.dll"
+          )
+        endif()
+      endif()
 
       # include the language dll's as well as the actuall dll's
-      SET(MSVC${v}_MFCLOC_DIR "${MSVC${v}_REDIST_DIR}/${CMAKE_MSVC_ARCH}/Microsoft.VC${v}0.MFCLOC")
-      SET(__install__libs ${__install__libs}
+      set(MSVC${v}_MFCLOC_DIR "${MSVC${v}_REDIST_DIR}/${CMAKE_MSVC_ARCH}/Microsoft.VC${v}0.MFCLOC")
+      set(__install__libs ${__install__libs}
         "${MSVC${v}_MFCLOC_DIR}/mfc${v}0chs.dll"
         "${MSVC${v}_MFCLOC_DIR}/mfc${v}0cht.dll"
-        "${MSVC${v}_MFCLOC_DIR}/mfc${v}0enu.dll"
-        "${MSVC${v}_MFCLOC_DIR}/mfc${v}0esp.dll"
         "${MSVC${v}_MFCLOC_DIR}/mfc${v}0deu.dll"
+        "${MSVC${v}_MFCLOC_DIR}/mfc${v}0enu.dll"
+        "${MSVC${v}_MFCLOC_DIR}/mfc${v}0esn.dll"
         "${MSVC${v}_MFCLOC_DIR}/mfc${v}0fra.dll"
         "${MSVC${v}_MFCLOC_DIR}/mfc${v}0ita.dll"
         "${MSVC${v}_MFCLOC_DIR}/mfc${v}0jpn.dll"
         "${MSVC${v}_MFCLOC_DIR}/mfc${v}0kor.dll"
+        "${MSVC${v}_MFCLOC_DIR}/mfc${v}0rus.dll"
         )
-    ENDMACRO()
+    endmacro()
 
-    IF(MSVC10)
+    if(MSVC10)
       MFC_FILES_FOR_VERSION(10)
-    ENDIF()
+    endif()
 
-    IF(MSVC11)
+    if(MSVC11)
       MFC_FILES_FOR_VERSION(11)
-    ENDIF()
-  ENDIF(CMAKE_INSTALL_MFC_LIBRARIES)
+    endif()
 
-  FOREACH(lib
+    if(MSVC12)
+      MFC_FILES_FOR_VERSION(12)
+    endif()
+
+    if(MSVC14)
+      MFC_FILES_FOR_VERSION(14)
+    endif()
+  endif()
+
+  # MSVC 8 was the first version with OpenMP
+  # Furthermore, there is no debug version of this
+  if(CMAKE_INSTALL_OPENMP_LIBRARIES)
+    macro(OPENMP_FILES_FOR_VERSION version_a version_b)
+      set(va "${version_a}")
+      set(vb "${version_b}")
+      set(MSVC${va}_OPENMP_DIR "${MSVC${va}_REDIST_DIR}/${CMAKE_MSVC_ARCH}/Microsoft.VC${vb}.OPENMP")
+
+      if(NOT CMAKE_INSTALL_DEBUG_LIBRARIES_ONLY)
+        set(__install__libs ${__install__libs}
+          "${MSVC${va}_OPENMP_DIR}/vcomp${vb}.dll")
+      endif()
+    endmacro()
+
+    if(MSVC80)
+      OPENMP_FILES_FOR_VERSION(80 80)
+    endif()
+    if(MSVC90)
+      OPENMP_FILES_FOR_VERSION(90 90)
+    endif()
+    if(MSVC10)
+      OPENMP_FILES_FOR_VERSION(10 100)
+    endif()
+    if(MSVC11)
+      OPENMP_FILES_FOR_VERSION(11 110)
+    endif()
+    if(MSVC12)
+      OPENMP_FILES_FOR_VERSION(12 120)
+    endif()
+    if(MSVC14)
+      OPENMP_FILES_FOR_VERSION(14 140)
+    endif()
+  endif()
+
+  foreach(lib
       ${__install__libs}
       )
-    IF(EXISTS ${lib})
-      SET(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS
+    if(EXISTS ${lib})
+      set(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS
         ${CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS} ${lib})
-    ELSE(EXISTS ${lib})
-      IF(NOT CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_NO_WARNINGS)
-        MESSAGE(WARNING "system runtime library file does not exist: '${lib}'")
+    else()
+      if(NOT CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_NO_WARNINGS)
+        message(WARNING "system runtime library file does not exist: '${lib}'")
         # This warning indicates an incomplete Visual Studio installation
         # or a bug somewhere above here in this file.
         # If you would like to avoid this warning, fix the real problem, or
         # set CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_NO_WARNINGS before including
         # this file.
-      ENDIF()
-    ENDIF(EXISTS ${lib})
-  ENDFOREACH(lib)
-ENDIF(MSVC)
+      endif()
+    endif()
+  endforeach()
+endif()
 
-IF(WATCOM)
-  GET_FILENAME_COMPONENT( CompilerPath ${CMAKE_C_COMPILER} PATH )
-  IF(WATCOM17)
-     SET( __install__libs ${CompilerPath}/clbr17.dll
-       ${CompilerPath}/mt7r17.dll ${CompilerPath}/plbr17.dll )
-  ENDIF()
-  IF(WATCOM18)
-     SET( __install__libs ${CompilerPath}/clbr18.dll
-       ${CompilerPath}/mt7r18.dll ${CompilerPath}/plbr18.dll )
-  ENDIF()
-  IF(WATCOM19)
-     SET( __install__libs ${CompilerPath}/clbr19.dll
-       ${CompilerPath}/mt7r19.dll ${CompilerPath}/plbr19.dll )
-  ENDIF()
-  FOREACH(lib
+if(WATCOM)
+  get_filename_component( CompilerPath ${CMAKE_C_COMPILER} PATH )
+  if(CMAKE_C_COMPILER_VERSION)
+    set(_compiler_version ${CMAKE_C_COMPILER_VERSION})
+  else()
+    set(_compiler_version ${CMAKE_CXX_COMPILER_VERSION})
+  endif()
+  string(REGEX MATCHALL "[0-9]+" _watcom_version_list "${_compiler_version}")
+  list(GET _watcom_version_list 0 _watcom_major)
+  list(GET _watcom_version_list 1 _watcom_minor)
+  set( __install__libs
+    ${CompilerPath}/clbr${_watcom_major}${_watcom_minor}.dll
+    ${CompilerPath}/mt7r${_watcom_major}${_watcom_minor}.dll
+    ${CompilerPath}/plbr${_watcom_major}${_watcom_minor}.dll )
+  foreach(lib
       ${__install__libs}
       )
-    IF(EXISTS ${lib})
-      SET(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS
+    if(EXISTS ${lib})
+      set(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS
         ${CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS} ${lib})
-    ELSE()
-      IF(NOT CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_NO_WARNINGS)
-        MESSAGE(WARNING "system runtime library file does not exist: '${lib}'")
+    else()
+      if(NOT CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_NO_WARNINGS)
+        message(WARNING "system runtime library file does not exist: '${lib}'")
         # This warning indicates an incomplete Watcom installation
         # or a bug somewhere above here in this file.
         # If you would like to avoid this warning, fix the real problem, or
         # set CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_NO_WARNINGS before including
         # this file.
-      ENDIF()
-    ENDIF()
-  ENDFOREACH()
-ENDIF()
+      endif()
+    endif()
+  endforeach()
+endif()
 
 
 # Include system runtime libraries in the installation if any are
 # specified by CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS.
-IF(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS)
-  IF(NOT CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP)
-    IF(NOT CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION)
-      IF(WIN32)
-        SET(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION bin)
-      ELSE(WIN32)
-        SET(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION lib)
-      ENDIF(WIN32)
-    ENDIF(NOT CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION)
-    INSTALL(PROGRAMS ${CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS}
-      DESTINATION ${CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION})
-  ENDIF(NOT CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP)
-ENDIF(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS)
+if(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS)
+  if(NOT CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP)
+    if(NOT CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION)
+      if(WIN32)
+        set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION bin)
+      else()
+        set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION lib)
+      endif()
+    endif()
+    if(CMAKE_INSTALL_SYSTEM_RUNTIME_COMPONENT)
+      set(_CMAKE_INSTALL_SYSTEM_RUNTIME_COMPONENT
+        COMPONENT ${CMAKE_INSTALL_SYSTEM_RUNTIME_COMPONENT})
+    endif()
+    install(PROGRAMS ${CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS}
+      DESTINATION ${CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION}
+      ${_CMAKE_INSTALL_SYSTEM_RUNTIME_COMPONENT}
+      )
+  endif()
+endif()

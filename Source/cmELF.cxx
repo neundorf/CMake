@@ -13,13 +13,35 @@
 #include "cmELF.h"
 
 #include <cmsys/auto_ptr.hxx>
-
-// Need the native byte order of the running CPU.
-#define cmsys_CPU_UNKNOWN_OKAY // We can decide at runtime if not known.
-#include <cmsys/CPU.h>
+#include <cmsys/FStream.hxx>
 
 // Include the ELF format information system header.
-#include <elf.h>
+#if defined(__OpenBSD__)
+# include <stdint.h>
+# include <elf_abi.h>
+#elif defined(__HAIKU__)
+# include <elf32.h>
+# include <elf64.h>
+  typedef struct Elf32_Ehdr Elf32_Ehdr;
+  typedef struct Elf32_Shdr Elf32_Shdr;
+  typedef struct Elf32_Sym Elf32_Sym;
+  typedef struct Elf32_Rel Elf32_Rel;
+  typedef struct Elf32_Rela Elf32_Rela;
+# define ELFMAG0 0x7F
+# define ELFMAG1 'E'
+# define ELFMAG2 'L'
+# define ELFMAG3 'F'
+# define ET_NONE 0
+# define ET_REL 1
+# define ET_EXEC 2
+# define ET_DYN 3
+# define ET_CORE 4
+# define EM_386 3
+# define EM_SPARC 2
+# define EM_PPC 20
+#else
+# include <elf.h>
+#endif
 #if defined(__sun)
 # include <sys/link.h> // For dynamic section information
 #endif
@@ -66,7 +88,7 @@ public:
 
   // Construct and take ownership of the file stream object.
   cmELFInternal(cmELF* external,
-                cmsys::auto_ptr<std::ifstream>& fin,
+                cmsys::auto_ptr<cmsys::ifstream>& fin,
                 ByteOrderType order):
     External(external),
     Stream(*fin.release()),
@@ -76,9 +98,9 @@ public:
     // In most cases the processor-specific byte order will match that
     // of the target execution environment.  If we choose wrong here
     // it is fixed when the header is read.
-#if cmsys_CPU_ENDIAN_ID == cmsys_CPU_ENDIAN_ID_LITTLE
+#if KWIML_ABI_ENDIAN_ID == KWIML_ABI_ENDIAN_ID_LITTLE
     this->NeedSwap = (this->ByteOrder == ByteOrderMSB);
-#elif cmsys_CPU_ENDIAN_ID == cmsys_CPU_ENDIAN_ID_BIG
+#elif KWIML_ABI_ENDIAN_ID == KWIML_ABI_ENDIAN_ID_BIG
     this->NeedSwap = (this->ByteOrder == ByteOrderLSB);
 #else
     this->NeedSwap = false; // Final decision is at runtime anyway.
@@ -98,7 +120,7 @@ public:
   virtual unsigned int GetNumberOfSections() const = 0;
   virtual unsigned int GetDynamicEntryCount() = 0;
   virtual unsigned long GetDynamicEntryPosition(int j) = 0;
-  virtual StringEntry const* GetDynamicSectionString(int tag) = 0;
+  virtual StringEntry const* GetDynamicSectionString(unsigned int tag) = 0;
   virtual void PrintInfo(std::ostream& os) const = 0;
 
   bool ReadBytes(unsigned long pos, unsigned long size, char* buf)
@@ -161,7 +183,7 @@ protected:
     }
 
   // Store string table entry states.
-  std::map<int, StringEntry> DynamicSectionStrings;
+  std::map<unsigned int, StringEntry> DynamicSectionStrings;
 };
 
 //----------------------------------------------------------------------------
@@ -172,16 +194,18 @@ struct cmELFTypes32
   typedef Elf32_Shdr ELF_Shdr;
   typedef Elf32_Dyn  ELF_Dyn;
   typedef Elf32_Half ELF_Half;
+  typedef KWIML_INT_uint32_t tagtype;
   static const char* GetName() { return "32-bit"; }
 };
 
-// Configure the implementation template for 32-bit ELF files.
+// Configure the implementation template for 64-bit ELF files.
 struct cmELFTypes64
 {
   typedef Elf64_Ehdr ELF_Ehdr;
   typedef Elf64_Shdr ELF_Shdr;
   typedef Elf64_Dyn  ELF_Dyn;
   typedef Elf64_Half ELF_Half;
+  typedef KWIML_INT_uint64_t tagtype;
   static const char* GetName() { return "64-bit"; }
 };
 
@@ -196,10 +220,11 @@ public:
   typedef typename Types::ELF_Shdr ELF_Shdr;
   typedef typename Types::ELF_Dyn  ELF_Dyn;
   typedef typename Types::ELF_Half ELF_Half;
+  typedef typename Types::tagtype tagtype;
 
   // Construct with a stream and byte swap indicator.
   cmELFInternalImpl(cmELF* external,
-                    cmsys::auto_ptr<std::ifstream>& fin,
+                    cmsys::auto_ptr<cmsys::ifstream>& fin,
                     ByteOrderType order);
 
   // Return the number of sections as specified by the ELF header.
@@ -213,7 +238,7 @@ public:
   virtual unsigned long GetDynamicEntryPosition(int j);
 
   // Lookup a string from the dynamic section with the given tag.
-  virtual StringEntry const* GetDynamicSectionString(int tag);
+  virtual StringEntry const* GetDynamicSectionString(unsigned int tag);
 
   // Print information about the ELF file.
   virtual void PrintInfo(std::ostream& os) const
@@ -457,7 +482,7 @@ private:
 template <class Types>
 cmELFInternalImpl<Types>
 ::cmELFInternalImpl(cmELF* external,
-                    cmsys::auto_ptr<std::ifstream>& fin,
+                    cmsys::auto_ptr<cmsys::ifstream>& fin,
                     ByteOrderType order):
   cmELFInternal(external, fin, order)
 {
@@ -503,7 +528,7 @@ cmELFInternalImpl<Types>
         break;
         }
 #endif
-      cmOStringStream e;
+      std::ostringstream e;
       e << "Unknown ELF file type " << eti;
       this->SetErrorMessage(e.str().c_str());
       return;
@@ -538,8 +563,14 @@ bool cmELFInternalImpl<Types>::LoadDynamicSection()
     return true;
     }
 
-  // Allocate the dynamic section entries.
+  // If there are no entries we are done.
   ELF_Shdr const& sec = this->SectionHeaders[this->DynamicSectionIndex];
+  if(sec.sh_entsize == 0)
+    {
+    return false;
+    }
+
+  // Allocate the dynamic section entries.
   int n = static_cast<int>(sec.sh_size / sec.sh_entsize);
   this->DynamicSectionEntries.resize(n);
 
@@ -598,10 +629,10 @@ unsigned long cmELFInternalImpl<Types>::GetDynamicEntryPosition(int j)
 //----------------------------------------------------------------------------
 template <class Types>
 cmELF::StringEntry const*
-cmELFInternalImpl<Types>::GetDynamicSectionString(int tag)
+cmELFInternalImpl<Types>::GetDynamicSectionString(unsigned int tag)
 {
   // Short-circuit if already checked.
-  std::map<int, StringEntry>::iterator dssi =
+  std::map<unsigned int, StringEntry>::iterator dssi =
     this->DynamicSectionStrings.find(tag);
   if(dssi != this->DynamicSectionStrings.end())
     {
@@ -639,7 +670,7 @@ cmELFInternalImpl<Types>::GetDynamicSectionString(int tag)
       di != this->DynamicSectionEntries.end(); ++di)
     {
     ELF_Dyn& dyn = *di;
-    if(dyn.d_tag == tag)
+    if(static_cast<tagtype>(dyn.d_tag) == static_cast<tagtype>(tag))
       {
       // We found the tag requested.
       // Make sure the position given is within the string section.
@@ -702,7 +733,7 @@ cmELFInternalImpl<Types>::GetDynamicSectionString(int tag)
 cmELF::cmELF(const char* fname): Internal(0)
 {
   // Try to open the file.
-  cmsys::auto_ptr<std::ifstream> fin(new std::ifstream(fname));
+  cmsys::auto_ptr<cmsys::ifstream> fin(new cmsys::ifstream(fname));
 
   // Quit now if the file could not be opened.
   if(!fin.get() || !*fin)

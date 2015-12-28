@@ -13,21 +13,24 @@
 #include "cmLocalUnixMakefileGenerator3.h"
 #include "cmMakefile.h"
 #include "cmake.h"
+#include <cmsys/FStream.hxx>
 
-cmGlobalMSYSMakefileGenerator::cmGlobalMSYSMakefileGenerator()
+cmGlobalMSYSMakefileGenerator::cmGlobalMSYSMakefileGenerator(cmake* cm)
+  : cmGlobalUnixMakefileGenerator3(cm)
 {
   this->FindMakeProgramFile = "CMakeMSYSFindMake.cmake";
   this->ForceUnixPaths = true;
   this->ToolSupportsColor = true;
   this->UseLinkScript = false;
+  cm->GetState()->SetMSYSShell(true);
 }
 
-std::string 
+std::string
 cmGlobalMSYSMakefileGenerator::FindMinGW(std::string const& makeloc)
 {
   std::string fstab = makeloc;
   fstab += "/../etc/fstab";
-  std::ifstream fin(fstab.c_str());
+  cmsys::ifstream fin(fstab.c_str());
   std::string path;
   std::string mount;
   std::string mingwBin;
@@ -45,8 +48,8 @@ cmGlobalMSYSMakefileGenerator::FindMinGW(std::string const& makeloc)
 }
 
 void cmGlobalMSYSMakefileGenerator
-::EnableLanguage(std::vector<std::string>const& l, 
-                 cmMakefile *mf, 
+::EnableLanguage(std::vector<std::string>const& l,
+                 cmMakefile *mf,
                  bool optional)
 {
   this->FindMakeProgram(mf);
@@ -59,19 +62,19 @@ void cmGlobalMSYSMakefileGenerator
   locations.push_back("c:/mingw/bin");
   std::string tgcc = cmSystemTools::FindProgram("gcc", locations);
   std::string gcc = "gcc.exe";
-  if(tgcc.size())
+  if(!tgcc.empty())
     {
     gcc = tgcc;
     }
   std::string tgxx = cmSystemTools::FindProgram("g++", locations);
   std::string gxx = "g++.exe";
-  if(tgxx.size())
+  if(!tgxx.empty())
     {
     gxx = tgxx;
     }
   std::string trc = cmSystemTools::FindProgram("windres", locations);
   std::string rc = "windres.exe";
-  if(trc.size())
+  if(!trc.empty())
     {
     rc = trc;
     }
@@ -91,25 +94,10 @@ void cmGlobalMSYSMakefileGenerator
     }
 }
 
-///! Create a local generator appropriate to this Global Generator
-cmLocalGenerator *cmGlobalMSYSMakefileGenerator::CreateLocalGenerator()
-{
-  cmLocalUnixMakefileGenerator3* lg = new cmLocalUnixMakefileGenerator3;
-  lg->SetWindowsShell(false);
-  lg->SetMSYSShell(true);
-  lg->SetGlobalGenerator(this);
-  lg->SetIgnoreLibPrefix(true);
-  lg->SetPassMakeflags(false);
-  lg->SetUnixCD(true);
-  return lg;
-}
-
 //----------------------------------------------------------------------------
 void cmGlobalMSYSMakefileGenerator
-::GetDocumentation(cmDocumentationEntry& entry) const
+::GetDocumentation(cmDocumentationEntry& entry)
 {
-  entry.Name = this->GetName();
+  entry.Name = cmGlobalMSYSMakefileGenerator::GetActualName();
   entry.Brief = "Generates MSYS makefiles.";
-  entry.Full = "The makefiles use /bin/sh as the shell.  "
-    "They require msys to be installed on the machine.";
 }

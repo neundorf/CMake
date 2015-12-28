@@ -29,7 +29,7 @@ public:
   /**
    * This is a virtual constructor for the command.
    */
-  virtual cmCommand* Clone() 
+  virtual cmCommand* Clone()
     {
     return new cmFindPathCommand;
     }
@@ -44,25 +44,15 @@ public:
   /**
    * This determines if the command is invoked when in script mode.
    */
-  virtual bool IsScriptable() { return true; }
+  virtual bool IsScriptable() const { return true; }
 
   /**
    * The name of the command as specified in CMakeList.txt.
    */
-  virtual const char* GetName() {return "find_path";}
-
-  /**
-   * Succinct documentation.
-   */
-  virtual const char* GetTerseDocumentation() 
-    {
-    return "Find the directory containing a file.";
-    }
+  virtual std::string GetName() const {return "find_path";}
 
   cmTypeMacro(cmFindPathCommand, cmFindBase);
   bool IncludeFileInPath;
-protected:
-  virtual void GenerateDocumentation();
 private:
   std::string FindHeaderInFramework(std::string const& file,
                                     std::string const& dir);

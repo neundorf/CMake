@@ -1,7 +1,16 @@
-# - Find the GCC-XML front-end executable.
+#.rst:
+# FindGCCXML
+# ----------
+#
+# Find the GCC-XML front-end executable.
+#
+#
 #
 # This module will define the following variables:
-#  GCCXML - the GCC-XML front-end executable.
+#
+# ::
+#
+#   GCCXML - the GCC-XML front-end executable.
 
 #=============================================================================
 # Copyright 2001-2009 Kitware, Inc.
@@ -16,7 +25,7 @@
 # (To distribute this file outside of CMake, substitute the full
 #  License text for the above reference.)
 
-FIND_PROGRAM(GCCXML
+find_program(GCCXML
   NAMES gccxml
         ../GCC_XML/gccxml
   PATHS [HKEY_CURRENT_USER\\Software\\Kitware\\GCC_XML;loc]
@@ -24,4 +33,4 @@ FIND_PROGRAM(GCCXML
   "C:/Program Files/GCC_XML"
 )
 
-MARK_AS_ADVANCED(GCCXML)
+mark_as_advanced(GCCXML)

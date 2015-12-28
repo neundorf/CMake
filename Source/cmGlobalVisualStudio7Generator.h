@@ -13,6 +13,7 @@
 #define cmGlobalVisualStudio7Generator_h
 
 #include "cmGlobalVisualStudioGenerator.h"
+#include "cmGlobalGeneratorFactory.h"
 
 class cmTarget;
 struct cmIDEFlagTable;
@@ -25,23 +26,40 @@ struct cmIDEFlagTable;
 class cmGlobalVisualStudio7Generator : public cmGlobalVisualStudioGenerator
 {
 public:
-  cmGlobalVisualStudio7Generator();
-  static cmGlobalGenerator* New() {
-    return new cmGlobalVisualStudio7Generator; }
+  cmGlobalVisualStudio7Generator(cmake* cm,
+                                 const std::string& platformName = "");
+  ~cmGlobalVisualStudio7Generator();
+
+  static cmGlobalGeneratorFactory* NewFactory() {
+    return new cmGlobalGeneratorSimpleFactory
+      <cmGlobalVisualStudio7Generator>(); }
 
   ///! Get the name for the generator.
-  virtual const char* GetName() const {
+  virtual std::string GetName() const {
     return cmGlobalVisualStudio7Generator::GetActualName();}
-  static const char* GetActualName() {return "Visual Studio 7";}
+  static std::string GetActualName() {return "Visual Studio 7";}
+
+  ///! Get the name for the platform.
+  std::string const& GetPlatformName() const;
 
   ///! Create a local generator appropriate to this Global Generator
-  virtual cmLocalGenerator *CreateLocalGenerator();
+  virtual cmLocalGenerator *CreateLocalGenerator(cmMakefile* mf);
+
+  virtual bool SetSystemName(std::string const& s, cmMakefile* mf);
+
+  virtual bool SetGeneratorPlatform(std::string const& p, cmMakefile* mf);
 
   /** Get the documentation entry for this generator.  */
-  virtual void GetDocumentation(cmDocumentationEntry& entry) const;
+  static void GetDocumentation(cmDocumentationEntry& entry);
 
   /**
-   * Try to determine system infomation such as shared library
+   * Utilized by the generator factory to determine if this generator
+   * supports toolsets.
+   */
+  static bool SupportsToolset() { return false; }
+
+  /**
+   * Try to determine system information such as shared library
    * extension, pthreads, byte order etc.
    */
   virtual void EnableLanguage(std::vector<std::string>const& languages,
@@ -51,67 +69,81 @@ public:
    * Try running cmake and building a file. This is used for dynamically
    * loaded commands, not as part of the usual build process.
    */
-  virtual std::string GenerateBuildCommand(const char* makeProgram,
-                                           const char *projectName,
-                                           const char* additionalOptions,
-                                           const char *targetName,
-                                           const char* config,
-                                           bool ignoreErrors,
-                                           bool fast);
-
-  /**
-   * Generate the all required files for building this project/tree. This
-   * basically creates a series of LocalGenerators for each directory and
-   * requests that they Generate.
-   */
-  virtual void Generate();
+  virtual void GenerateBuildCommand(
+    std::vector<std::string>& makeCommand,
+    const std::string& makeProgram,
+    const std::string& projectName,
+    const std::string& projectDir,
+    const std::string& targetName,
+    const std::string& config,
+    bool fast, bool verbose,
+    std::vector<std::string> const& makeOptions = std::vector<std::string>()
+    );
 
   /**
    * Generate the DSW workspace file.
    */
   virtual void OutputSLNFile();
 
-  /**
-   * Get the list of configurations
-   */
-  std::vector<std::string> *GetConfigurations();
-
-  ///! Create a GUID or get an existing one.
-  void CreateGUID(const char* name);
-  std::string GetGUID(const char* name);
+  ///! Lookup a stored GUID or compute one deterministically.
+  std::string GetGUID(std::string const& name);
 
   /** Append the subdirectory for the given configuration.  */
-  virtual void AppendDirectoryForConfig(const char* prefix,
-                                        const char* config,
-                                        const char* suffix,
+  virtual void AppendDirectoryForConfig(const std::string& prefix,
+                                        const std::string& config,
+                                        const std::string& suffix,
                                         std::string& dir);
 
   ///! What is the configurations directory variable called?
-  virtual const char* GetCMakeCFGInitDirectory()  { return "$(OutDir)"; }
+  virtual const char* GetCMakeCFGIntDir() const
+    { return "$(ConfigurationName)"; }
 
   /** Return true if the target project file should have the option
       LinkLibraryDependencies and link to .sln dependencies. */
-  virtual bool NeedLinkLibraryDependencies(cmTarget&) { return false; }
+  virtual bool NeedLinkLibraryDependencies(cmGeneratorTarget*)
+  { return false; }
+
+  const char* GetIntelProjectVersion();
+
+  virtual void FindMakeProgram(cmMakefile*);
+
+  /** Is the Microsoft Assembler enabled?  */
+  bool IsMasmEnabled() const { return this->MasmEnabled; }
+
+  // Encoding for Visual Studio files
+  virtual std::string Encoding();
+
+  cmIDEFlagTable const* ExtraFlagTable;
 
 protected:
+  virtual void Generate();
   virtual const char* GetIDEVersion() { return "7.0"; }
 
-  static cmIDEFlagTable const* GetExtraFlagTableVS7();
+  std::string const& GetDevEnvCommand();
+  virtual std::string FindDevEnvCommand();
+
+  static const char* ExternalProjectType(const char* location);
+
   virtual void OutputSLNFile(cmLocalGenerator* root,
                              std::vector<cmLocalGenerator*>& generators);
   virtual void WriteSLNFile(std::ostream& fout, cmLocalGenerator* root,
                             std::vector<cmLocalGenerator*>& generators);
   virtual void WriteProject(std::ostream& fout,
-                            const char* name, const char* path, cmTarget &t);
+                            const std::string& name, const char* path,
+                            const cmGeneratorTarget *t);
   virtual void WriteProjectDepends(std::ostream& fout,
-                           const char* name, const char* path, cmTarget &t);
-  virtual void WriteProjectConfigurations(std::ostream& fout,
-                                          const char* name,
-                                          bool partOfDefaultBuild);
+                           const std::string& name, const char* path,
+                           cmGeneratorTarget const* t);
+  virtual void WriteProjectConfigurations(
+    std::ostream& fout, const std::string& name, cmState::TargetType type,
+    std::vector<std::string> const& configs,
+    const std::set<std::string>& configsPartOfDefaultBuild,
+    const std::string& platformMapping = "");
+  virtual void WriteSLNGlobalSections(std::ostream& fout,
+                                      cmLocalGenerator* root);
   virtual void WriteSLNFooter(std::ostream& fout);
   virtual void WriteSLNHeader(std::ostream& fout);
-  virtual std::string WriteUtilityDepend(cmTarget* target);
-  virtual void AddPlatformDefinitions(cmMakefile* mf);
+  virtual std::string WriteUtilityDepend(const cmGeneratorTarget *target);
 
   virtual void WriteTargetsToSolution(
     std::ostream& fout,
@@ -122,23 +154,25 @@ protected:
     OrderedTargetDependSet const& projectTargets);
   virtual void WriteTargetConfigurations(
     std::ostream& fout,
-    cmLocalGenerator* root,
+    std::vector<std::string> const& configs,
     OrderedTargetDependSet const& projectTargets);
 
-  void GenerateConfigurations(cmMakefile* mf);
-
   virtual void WriteExternalProject(std::ostream& fout,
-                                    const char* name,
+                                    const std::string& name,
                                     const char* path,
-                                    const std::set<cmStdString>&
+                                    const char* typeGuid,
+                                    const std::set<std::string>&
                                     dependencies);
 
   std::string ConvertToSolutionPath(const char* path);
 
-  bool IsPartOfDefaultBuild(const char* project,
-                            cmTarget* target);
-  std::vector<std::string> Configurations;
-  std::map<cmStdString, cmStdString> GUIDMap;
+  std::set<std::string>
+    IsPartOfDefaultBuild(std::vector<std::string> const& configs,
+                         OrderedTargetDependSet const& projectTargets,
+                         cmGeneratorTarget const* target);
+  bool IsDependedOn(OrderedTargetDependSet const& projectTargets,
+                    cmGeneratorTarget const* target);
+  std::map<std::string, std::string> GUIDMap;
 
   virtual void WriteFolders(std::ostream& fout);
   virtual void WriteFoldersContent(std::ostream& fout);
@@ -147,6 +181,15 @@ protected:
   // Set during OutputSLNFile with the name of the current project.
   // There is one SLN file per project.
   std::string CurrentProject;
+  std::string GeneratorPlatform;
+  std::string DefaultPlatformName;
+  bool MasmEnabled;
+
+private:
+  char* IntelProjectVersion;
+  std::string DevEnvCommand;
+  bool DevEnvCommandInitialized;
+  virtual std::string GetVSMakeProgram() { return this->GetDevEnvCommand(); }
 };
 
 #define CMAKE_CHECK_BUILD_SYSTEM_TARGET "ZERO_CHECK"

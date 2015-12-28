@@ -15,6 +15,8 @@
 
 #include "cmCPackGenerator.h"
 
+class cmGeneratedFileStream;
+
 /** \class cmCPackDragNDropGenerator
  * \brief A generator for OSX drag-n-drop installs
  */
@@ -33,8 +35,9 @@ protected:
   bool SupportsComponentInstallation() const;
 
 
-  bool CopyFile(cmOStringStream& source, cmOStringStream& target);
-  bool RunCommand(cmOStringStream& command, std::string* output = 0);
+  bool CopyFile(std::ostringstream& source, std::ostringstream& target);
+  bool CreateEmptyFile(std::ostringstream& target, size_t size);
+  bool RunCommand(std::ostringstream& command, std::string* output = 0);
 
   std::string
   GetComponentInstallDirNameSuffix(const std::string& componentName);
@@ -42,6 +45,16 @@ protected:
   int CreateDMG(const std::string& src_dir, const std::string& output_file);
 
   std::string InstallPrefix;
+
+private:
+  std::string slaDirectory;
+  bool singleLicense;
+
+  void WriteLicense(cmGeneratedFileStream& outputStream, int licenseNumber,
+    std::string licenseLanguage, std::string licenseFile = "");
+  void BreakLongLine(const std::string& line,
+    std::vector<std::string>& lines);
+  void EscapeQuotes(std::string& line);
 };
 
 #endif

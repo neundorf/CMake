@@ -10,6 +10,7 @@
   See the License for more information.
 ============================================================================*/
 #include "cmXMLParser.h"
+#include <cmsys/FStream.hxx>
 
 #include <cm_expat.h>
 #include <ctype.h>
@@ -19,6 +20,8 @@ cmXMLParser::cmXMLParser()
 {
   this->Parser = 0;
   this->ParseError = 0;
+  this->ReportCallback = 0;
+  this->ReportCallbackData = 0;
 }
 
 //----------------------------------------------------------------------------
@@ -34,7 +37,7 @@ cmXMLParser::~cmXMLParser()
 int cmXMLParser::Parse(const char* string)
 {
   return (int)this->InitializeParser() &&
-    this->ParseChunk(string, strlen(string)) && 
+    this->ParseChunk(string, strlen(string)) &&
     this->CleanupParser();
 }
 
@@ -45,13 +48,13 @@ int cmXMLParser::ParseFile(const char* file)
     return 0;
     }
 
-  std::ifstream ifs(file);
+  cmsys::ifstream ifs(file);
   if ( !ifs )
     {
     return 0;
     }
 
-  cmOStringStream str;
+  std::ostringstream str;
   str << ifs.rdbuf();
   return this->Parse(str.str().c_str());
 }
@@ -79,7 +82,7 @@ int cmXMLParser::InitializeParser()
 }
 
 //----------------------------------------------------------------------------
-int cmXMLParser::ParseChunk(const char* inputString, 
+int cmXMLParser::ParseChunk(const char* inputString,
                             std::string::size_type length)
 {
   if ( !this->Parser )
@@ -116,11 +119,11 @@ int cmXMLParser::CleanupParser()
       result = 0;
       }
     }
-  
+
   // Clean up the parser.
   XML_ParserFree(static_cast<XML_Parser>(this->Parser));
   this->Parser = 0;
-  
+
   return result;
 }
 
@@ -128,7 +131,7 @@ int cmXMLParser::CleanupParser()
 int cmXMLParser::ParseBuffer(const char* buffer, std::string::size_type count)
 {
   // Pass the buffer to the expat XML parser.
-  if(!XML_Parse(static_cast<XML_Parser>(this->Parser), buffer, 
+  if(!XML_Parse(static_cast<XML_Parser>(this->Parser), buffer,
                 static_cast<int>(count), 0))
     {
     this->ReportXmlParseError();
@@ -151,14 +154,14 @@ int cmXMLParser::ParsingComplete()
 }
 
 //----------------------------------------------------------------------------
-void cmXMLParser::StartElement(const char * name,
+void cmXMLParser::StartElement(const std::string& name,
   const char ** /*atts*/)
 {
   std::cout << "Start element: " << name << std::endl;
 }
 
 //----------------------------------------------------------------------------
-void cmXMLParser::EndElement(const char * name)
+void cmXMLParser::EndElement(const std::string& name)
 {
   std::cout << "End element: " << name << std::endl;
 }
@@ -232,6 +235,13 @@ void cmXMLParser::ReportXmlParseError()
 //----------------------------------------------------------------------------
 void cmXMLParser::ReportError(int line, int, const char* msg)
 {
-  std::cerr << "Error parsing XML in stream at line "
-            << line << ": " << msg << std::endl;
+  if(this->ReportCallback)
+    {
+    this->ReportCallback(line, msg, this->ReportCallbackData);
+    }
+  else
+    {
+    std::cerr << "Error parsing XML in stream at line "
+              << line << ": " << msg << std::endl;
+    }
 }

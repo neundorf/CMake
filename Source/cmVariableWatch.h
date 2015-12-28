@@ -26,6 +26,7 @@ class cmVariableWatch
 public:
   typedef void (*WatchMethod)(const std::string& variable, int access_type,
     void* client_data, const char* newValue, const cmMakefile* mf);
+  typedef void (*DeleteData)(void* client_data);
 
   cmVariableWatch();
   ~cmVariableWatch();
@@ -33,10 +34,11 @@ public:
   /**
    * Add watch to the variable
    */
-  void AddWatch(const std::string& variable, WatchMethod method,
-                void* client_data=0);
-  void RemoveWatch(const std::string& variable, WatchMethod method);
-  
+  bool AddWatch(const std::string& variable, WatchMethod method,
+                void* client_data=0, DeleteData delete_data=0);
+  void RemoveWatch(const std::string& variable, WatchMethod method,
+                   void* client_data=0);
+
   /**
    * This method is called when variable is accessed
    */
@@ -51,7 +53,6 @@ public:
     VARIABLE_READ_ACCESS = 0,
     UNKNOWN_VARIABLE_READ_ACCESS,
     UNKNOWN_VARIABLE_DEFINED_ACCESS,
-    ALLOWED_UNKNOWN_VARIABLE_READ_ACCESS,
     VARIABLE_MODIFIED_ACCESS,
     VARIABLE_REMOVED_ACCESS,
     NO_ACCESS
@@ -61,17 +62,25 @@ public:
    * Return the access as string
    */
   static const char* GetAccessAsString(int access_type);
-  
+
 protected:
   struct Pair
   {
     WatchMethod Method;
     void*        ClientData;
-    Pair() : Method(0), ClientData(0) {}
+    DeleteData   DeleteDataCall;
+    Pair() : Method(0), ClientData(0), DeleteDataCall(0) {}
+    ~Pair()
+      {
+      if (this->DeleteDataCall && this->ClientData)
+        {
+        this->DeleteDataCall(this->ClientData);
+        }
+      }
   };
 
-  typedef std::vector< Pair > VectorOfPairs;
-  typedef std::map<cmStdString, VectorOfPairs > StringToVectorOfPairs;
+  typedef std::vector< Pair* > VectorOfPairs;
+  typedef std::map<std::string, VectorOfPairs > StringToVectorOfPairs;
 
   StringToVectorOfPairs WatchMap;
 };

@@ -77,6 +77,14 @@ protected slots:
   bool doConfigureInternal();
   bool doGenerateInternal();
   void exitLoop(int);
+  void doOutputContextMenu(const QPoint &);
+  void doOutputFindDialog();
+  void doOutputFindNext(bool directionForward = true);
+  void doOutputFindPrev();
+  void doOutputErrorNext();
+  void doRegexExplorerDialog();
+  /// display the modal warning messages dialog window
+  void doWarningMessagesDialog();
 
 protected:
 
@@ -96,7 +104,6 @@ protected:
   QAction* ExitAction;
   QAction* ConfigureAction;
   QAction* GenerateAction;
-  QAction* SuppressDevWarningsAction;
   QAction* WarnUninitializedAction;
   QAction* WarnUnusedAction;
   QAction* InstallForCommandLineAction;
@@ -105,7 +112,9 @@ protected:
   QTextCharFormat ErrorFormat;
   QTextCharFormat MessageFormat;
 
-  QStringList AddVariableCompletions;
+  QStringList AddVariableNames;
+  QStringList AddVariableTypes;
+  QStringList FindHistory;
 
   QEventLoop LocalLoop;
 

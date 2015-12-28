@@ -25,24 +25,23 @@ public:
   /** Checking instances need to know the build directory name and the
       relative path from the build directory to the target file.  */
   cmDependsC();
-  cmDependsC(cmLocalGenerator* lg, const char* targetDir, const char* lang,
+  cmDependsC(cmLocalGenerator* lg, const char* targetDir,
+             const std::string& lang,
              const std::map<std::string, DependencyVector>* validDeps);
 
   /** Virtual destructor to cleanup subclasses properly.  */
   virtual ~cmDependsC();
 
 protected:
-  typedef std::vector<char> t_CharBuffer;
-
   // Implement writing/checking methods required by superclass.
-  virtual bool WriteDependencies(const char *src,
-                                 const char *file,
+  virtual bool WriteDependencies(const std::set<std::string>& sources,
+                                 const std::string&           obj,
                                  std::ostream& makeDepends,
                                  std::ostream& internalDepends);
 
   // Method to scan a single file.
   void Scan(std::istream& is, const char* directory,
-    const cmStdString& fullName);
+    const std::string& fullName);
 
   // Regular expression to identify C preprocessor include directives.
   cmsys::RegularExpression IncludeRegexLine;
@@ -58,7 +57,7 @@ protected:
   // Regex to transform #include lines.
   std::string IncludeRegexTransformString;
   cmsys::RegularExpression IncludeRegexTransform;
-  typedef std::map<cmStdString, cmStdString> TransformRulesType;
+  typedef std::map<std::string, std::string> TransformRulesType;
   TransformRulesType TransformRules;
   void SetupTransforms();
   void ParseTransform(std::string const& xform);
@@ -68,8 +67,8 @@ public:
   // Data structures for dependency graph walk.
   struct UnscannedEntry
   {
-    cmStdString FileName;
-    cmStdString QuotedLocation;
+    std::string FileName;
+    std::string QuotedLocation;
   };
 
   struct cmIncludeLines
@@ -80,14 +79,13 @@ public:
   };
 protected:
   const std::map<std::string, DependencyVector>* ValidDeps;
-  std::set<cmStdString> Encountered;
+  std::set<std::string> Encountered;
   std::queue<UnscannedEntry> Unscanned;
-  t_CharBuffer Buffer;
 
-  std::map<cmStdString, cmIncludeLines *> FileCache;
-  std::map<cmStdString, cmStdString> HeaderLocationCache;
+  std::map<std::string, cmIncludeLines *> FileCache;
+  std::map<std::string, std::string> HeaderLocationCache;
 
-  cmStdString CacheFileName;
+  std::string CacheFileName;
 
   void WriteCacheFile() const;
   void ReadCacheFile();

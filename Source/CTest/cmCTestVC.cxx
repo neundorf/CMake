@@ -13,7 +13,7 @@
 
 #include "cmCTest.h"
 #include "cmSystemTools.h"
-#include "cmXMLSafe.h"
+#include "cmXMLWriter.h"
 
 #include <cmsys/Process.h>
 
@@ -63,9 +63,9 @@ bool cmCTestVC::InitialCheckout(const char* command)
     }
 
   // Construct the initial checkout command line.
-  std::vector<cmStdString> args = cmSystemTools::ParseArguments(command);
+  std::vector<std::string> args = cmSystemTools::ParseArguments(command);
   std::vector<char const*> vc_co;
-  for(std::vector<cmStdString>::const_iterator ai = args.begin();
+  for(std::vector<std::string>::const_iterator ai = args.begin();
       ai != args.end(); ++ai)
     {
     vc_co.push_back(ai->c_str());
@@ -105,7 +105,7 @@ bool cmCTestVC::RunChild(char const* const* cmd, OutputParser* out,
 //----------------------------------------------------------------------------
 std::string cmCTestVC::ComputeCommandLine(char const* const* cmd)
 {
-  cmOStringStream line;
+  std::ostringstream line;
   const char* sep = "";
   for(const char* const* arg = cmd; *arg; ++arg)
     {
@@ -166,10 +166,17 @@ void cmCTestVC::CleanupImpl()
 //----------------------------------------------------------------------------
 bool cmCTestVC::Update()
 {
-  this->NoteOldRevision();
-  this->Log << "--- Begin Update ---\n";
-  bool result = this->UpdateImpl();
-  this->Log << "--- End Update ---\n";
+  bool result = true;
+  // if update version only is on then do not actually update,
+  // just note the current version and finish
+  if(!cmSystemTools::IsOn(
+       this->CTest->GetCTestConfiguration("UpdateVersionOnly").c_str()))
+    {
+    this->NoteOldRevision();
+    this->Log << "--- Begin Update ---\n";
+    result = this->UpdateImpl();
+    this->Log << "--- End Update ---\n";
+    }
   this->NoteNewRevision();
   return result;
 }
@@ -195,7 +202,7 @@ bool cmCTestVC::UpdateImpl()
 }
 
 //----------------------------------------------------------------------------
-bool cmCTestVC::WriteXML(std::ostream& xml)
+bool cmCTestVC::WriteXML(cmXMLWriter& xml)
 {
   this->Log << "--- Begin Revisions ---\n";
   bool result = this->WriteXMLUpdates(xml);
@@ -204,7 +211,7 @@ bool cmCTestVC::WriteXML(std::ostream& xml)
 }
 
 //----------------------------------------------------------------------------
-bool cmCTestVC::WriteXMLUpdates(std::ostream&)
+bool cmCTestVC::WriteXMLUpdates(cmXMLWriter&)
 {
   cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
              "* CTest cannot extract updates for this VCS tool.\n");
@@ -212,7 +219,7 @@ bool cmCTestVC::WriteXMLUpdates(std::ostream&)
 }
 
 //----------------------------------------------------------------------------
-void cmCTestVC::WriteXMLEntry(std::ostream& xml,
+void cmCTestVC::WriteXMLEntry(cmXMLWriter& xml,
                               std::string const& path,
                               std::string const& name,
                               std::string const& full,
@@ -221,21 +228,19 @@ void cmCTestVC::WriteXMLEntry(std::ostream& xml,
   static const char* desc[3] = { "Updated", "Modified", "Conflicting"};
   Revision const& rev = f.Rev? *f.Rev : this->Unknown;
   std::string prior = f.PriorRev? f.PriorRev->Rev : std::string("Unknown");
-  xml << "\t\t<" << desc[f.Status] << ">\n"
-      << "\t\t\t<File>" << cmXMLSafe(name) << "</File>\n"
-      << "\t\t\t<Directory>" << cmXMLSafe(path) << "</Directory>\n"
-      << "\t\t\t<FullName>" << cmXMLSafe(full) << "</FullName>\n"
-      << "\t\t\t<CheckinDate>" << cmXMLSafe(rev.Date) << "</CheckinDate>\n"
-      << "\t\t\t<Author>" << cmXMLSafe(rev.Author) << "</Author>\n"
-      << "\t\t\t<Email>" << cmXMLSafe(rev.EMail) << "</Email>\n"
-      << "\t\t\t<Committer>" << cmXMLSafe(rev.Committer) << "</Committer>\n"
-      << "\t\t\t<CommitterEmail>" << cmXMLSafe(rev.CommitterEMail)
-      << "</CommitterEmail>\n"
-      << "\t\t\t<CommitDate>" << cmXMLSafe(rev.CommitDate)
-      << "</CommitDate>\n"
-      << "\t\t\t<Log>" << cmXMLSafe(rev.Log) << "</Log>\n"
-      << "\t\t\t<Revision>" << cmXMLSafe(rev.Rev) << "</Revision>\n"
-      << "\t\t\t<PriorRevision>" << cmXMLSafe(prior) << "</PriorRevision>\n"
-      << "\t\t</" << desc[f.Status] << ">\n";
+  xml.StartElement(desc[f.Status]);
+  xml.Element("File", name);
+  xml.Element("Directory", path);
+  xml.Element("FullName", full);
+  xml.Element("CheckinDate", rev.Date);
+  xml.Element("Author", rev.Author);
+  xml.Element("Email", rev.EMail);
+  xml.Element("Committer", rev.Committer);
+  xml.Element("CommitterEmail", rev.CommitterEMail);
+  xml.Element("CommitDate", rev.CommitDate);
+  xml.Element("Log", rev.Log);
+  xml.Element("Revision", rev.Rev);
+  xml.Element("PriorRevision", prior);
+  xml.EndElement();
   ++this->PathCount[f.Status];
 }

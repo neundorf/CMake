@@ -28,7 +28,7 @@ public:
   /**
    * This is a virtual constructor for the command.
    */
-  virtual cmCommand* Clone() 
+  virtual cmCommand* Clone()
     {
     return new cmProjectCommand;
     }
@@ -39,38 +39,12 @@ public:
    */
   virtual bool InitialPass(std::vector<std::string> const& args,
                            cmExecutionStatus &status);
-  
+
   /**
    * The name of the command as specified in CMakeList.txt.
    */
-  virtual const char* GetName() {return "project";}
+  virtual std::string GetName() const {return "project";}
 
-  /**
-   * Succinct documentation.
-   */
-  virtual const char* GetTerseDocumentation() 
-    {
-    return "Set a name for the entire project.";
-    }
-  
-  /**
-   * More documentation.
-   */
-  virtual const char* GetFullDocumentation()
-    {
-    return
-      "  project(<projectname> [languageName1 languageName2 ... ] )\n"
-      "Sets the name of the project.  "
-      "Additionally this sets the variables <projectName>_BINARY_DIR and "
-      "<projectName>_SOURCE_DIR to the respective values.\n"
-      "Optionally you can specify which languages your project supports.  "
-      "Example languages are CXX (i.e. C++), C, Fortran, etc. "
-      "By default C and CXX are enabled.  E.g. if you do not have a "
-      "C++ compiler, you can disable the check for it by explicitly listing "
-      "the languages you want to support, e.g. C.  By using the special "
-      "language \"NONE\" all checks for any language can be disabled.";
-    }
-  
   cmTypeMacro(cmProjectCommand, cmCommand);
 };
 

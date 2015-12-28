@@ -9,7 +9,7 @@
   implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   See the License for more information.
 ============================================================================*/
-#ifndef cmExprParserHelper_h 
+#ifndef cmExprParserHelper_h
 #define cmExprParserHelper_h
 
 #include "cmStandardIncludes.h"
@@ -46,16 +46,13 @@ public:
 
   int GetResult() { return this->Result; }
 
-  void SetLineFile(long line, const char* file);
-
   const char* GetError() { return this->ErrorString.c_str(); }
 
 private:
-  cmStdString::size_type InputBufferPos;
-  cmStdString InputBuffer;
+  std::string::size_type InputBufferPos;
+  std::string InputBuffer;
   std::vector<char> OutputBuffer;
   int CurrentLine;
-  int UnionsAvailable;
   int Verbose;
 
   void Print(const char* place, const char* str);

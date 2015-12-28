@@ -10,8 +10,8 @@
   See the License for more information.
 ============================================================================*/
 #include "cmTryRunCommand.h"
-#include "cmCacheManager.h"
 #include "cmTryCompileCommand.h"
+#include <cmsys/FStream.hxx>
 
 // cmTryRunCommand
 bool cmTryRunCommand
@@ -47,7 +47,8 @@ bool cmTryRunCommand
       {
       ++i;
       while (i < argv.size() && argv[i] != "COMPILE_DEFINITIONS" &&
-             argv[i] != "CMAKE_FLAGS")
+             argv[i] != "CMAKE_FLAGS" &&
+             argv[i] != "LINK_LIBRARIES")
         {
         runArgs += " ";
         runArgs += argv[i];
@@ -103,8 +104,8 @@ bool cmTryRunCommand
   // although they could be used together, don't allow it, because
   // using OUTPUT_VARIABLE makes crosscompiling harder
   if (this->OutputVariable.size()
-      && ((this->RunOutputVariable.size())
-       || (this->CompileOutputVariable.size())))
+      && (!this->RunOutputVariable.empty()
+       || !this->CompileOutputVariable.empty()))
     {
     cmSystemTools::Error(
       "You cannot use OUTPUT_VARIABLE together with COMPILE_OUTPUT_VARIABLE "
@@ -114,18 +115,18 @@ bool cmTryRunCommand
     }
 
   bool captureRunOutput = false;
-  if (this->OutputVariable.size())
+  if (!this->OutputVariable.empty())
     {
     captureRunOutput = true;
     tryCompile.push_back("OUTPUT_VARIABLE");
     tryCompile.push_back(this->OutputVariable);
     }
-  if (this->CompileOutputVariable.size())
+  if (!this->CompileOutputVariable.empty())
     {
     tryCompile.push_back("OUTPUT_VARIABLE");
     tryCompile.push_back(this->CompileOutputVariable);
     }
-  if (this->RunOutputVariable.size())
+  if (!this->RunOutputVariable.empty())
     {
     captureRunOutput = true;
     }
@@ -139,7 +140,7 @@ bool cmTryRunCommand
   // now try running the command if it compiled
   if (!res)
     {
-    if (this->OutputFile.size() == 0)
+    if (this->OutputFile.empty())
       {
       cmSystemTools::Error(this->FindErrorMessage.c_str());
       }
@@ -147,7 +148,8 @@ bool cmTryRunCommand
       {
       // "run" it and capture the output
       std::string runOutputContents;
-      if (this->Makefile->IsOn("CMAKE_CROSSCOMPILING"))
+      if (this->Makefile->IsOn("CMAKE_CROSSCOMPILING") &&
+          !this->Makefile->IsDefinitionSet("CMAKE_CROSSCOMPILING_EMULATOR"))
         {
         this->DoNotRunExecutable(runArgs,
                                  argv[3],
@@ -159,23 +161,23 @@ bool cmTryRunCommand
         }
 
       // now put the output into the variables
-      if(this->RunOutputVariable.size())
+      if(!this->RunOutputVariable.empty())
         {
-        this->Makefile->AddDefinition(this->RunOutputVariable.c_str(),
+        this->Makefile->AddDefinition(this->RunOutputVariable,
                                       runOutputContents.c_str());
         }
 
-      if(this->OutputVariable.size())
+      if(!this->OutputVariable.empty())
         {
         // if the TryCompileCore saved output in this outputVariable then
         // prepend that output to this output
         const char* compileOutput
-                 = this->Makefile->GetDefinition(this->OutputVariable.c_str());
+                 = this->Makefile->GetDefinition(this->OutputVariable);
         if (compileOutput)
           {
           runOutputContents = std::string(compileOutput) + runOutputContents;
           }
-        this->Makefile->AddDefinition(this->OutputVariable.c_str(),
+        this->Makefile->AddDefinition(this->OutputVariable,
                                       runOutputContents.c_str());
         }
       }
@@ -193,15 +195,36 @@ void cmTryRunCommand::RunExecutable(const std::string& runArgs,
                                     std::string* out)
 {
   int retVal = -1;
-  std::string finalCommand = cmSystemTools::ConvertToRunCommandPath(
+
+  std::string finalCommand;
+  const std::string emulator =
+  this->Makefile->GetSafeDefinition("CMAKE_CROSSCOMPILING_EMULATOR");
+  if (!emulator.empty())
+    {
+    std::vector<std::string> emulatorWithArgs;
+    cmSystemTools::ExpandListArgument(emulator, emulatorWithArgs);
+    finalCommand += cmSystemTools::ConvertToRunCommandPath(
+                                 emulatorWithArgs[0].c_str());
+    finalCommand += " ";
+    for (std::vector<std::string>::const_iterator ei =
+         emulatorWithArgs.begin()+1;
+         ei != emulatorWithArgs.end(); ++ei)
+      {
+      finalCommand += "\"";
+      finalCommand += *ei;
+      finalCommand += "\"";
+      finalCommand += " ";
+      }
+    }
+  finalCommand += cmSystemTools::ConvertToRunCommandPath(
                                this->OutputFile.c_str());
-  if (runArgs.size())
+  if (!runArgs.empty())
     {
     finalCommand += runArgs;
     }
   int timeout = 0;
   bool worked = cmSystemTools::RunSingleCommand(finalCommand.c_str(),
-                out, &retVal,
+                out, out, &retVal,
                 0, cmSystemTools::OUTPUT_NONE, timeout);
   // set the run var
   char retChar[1000];
@@ -213,9 +236,9 @@ void cmTryRunCommand::RunExecutable(const std::string& runArgs,
     {
     strcpy(retChar, "FAILED_TO_RUN");
     }
-  this->Makefile->AddCacheDefinition(this->RunResultVariable.c_str(), retChar,
+  this->Makefile->AddCacheDefinition(this->RunResultVariable, retChar,
                                      "Result of TRY_RUN",
-                                     cmCacheManager::INTERNAL);
+                                     cmState::INTERNAL);
 }
 
 /* This is only used when cross compiling. Instead of running the
@@ -234,11 +257,11 @@ void cmTryRunCommand::DoNotRunExecutable(const std::string& runArgs,
   copyDest += cmake::GetCMakeFilesDirectory();
   copyDest += "/";
   copyDest += cmSystemTools::GetFilenameWithoutExtension(
-                                                     this->OutputFile.c_str());
+                                                     this->OutputFile);
   copyDest += "-";
   copyDest += this->RunResultVariable;
-  copyDest += cmSystemTools::GetFilenameExtension(this->OutputFile.c_str());
-  cmSystemTools::CopyFileAlways(this->OutputFile.c_str(), copyDest.c_str());
+  copyDest += cmSystemTools::GetFilenameExtension(this->OutputFile);
+  cmSystemTools::CopyFileAlways(this->OutputFile, copyDest);
 
   std::string resultFileName =  this->Makefile->GetHomeOutputDirectory();
   resultFileName += "/TryRunResults.cmake";
@@ -249,7 +272,7 @@ void cmTryRunCommand::DoNotRunExecutable(const std::string& runArgs,
   std::string internalRunOutputName=this->RunResultVariable+"__TRYRUN_OUTPUT";
   bool error = false;
 
-  if (this->Makefile->GetDefinition(this->RunResultVariable.c_str()) == 0)
+  if (this->Makefile->GetDefinition(this->RunResultVariable) == 0)
     {
     // if the variables doesn't exist, create it with a helpful error text
     // and mark it as advanced
@@ -257,16 +280,17 @@ void cmTryRunCommand::DoNotRunExecutable(const std::string& runArgs,
     comment += "Run result of TRY_RUN(), indicates whether the executable "
                "would have been able to run on its target platform.\n";
     comment += detailsString;
-    this->Makefile->AddCacheDefinition(this->RunResultVariable.c_str(),
+    this->Makefile->AddCacheDefinition(this->RunResultVariable,
                                        "PLEASE_FILL_OUT-FAILED_TO_RUN",
                                        comment.c_str(),
-                                       cmCacheManager::STRING);
+                                       cmState::STRING);
 
-    cmCacheManager::CacheIterator it = this->Makefile->GetCacheManager()->
-                             GetCacheIterator(this->RunResultVariable.c_str());
-    if ( !it.IsAtEnd() )
+    cmState* state = this->Makefile->GetState();
+    const char* existingValue
+                        = state->GetCacheEntryValue(this->RunResultVariable);
+    if (existingValue)
       {
-      it.SetProperty("ADVANCED", "1");
+      state->SetCacheEntryProperty(this->RunResultVariable, "ADVANCED", "1");
       }
 
     error = true;
@@ -275,7 +299,7 @@ void cmTryRunCommand::DoNotRunExecutable(const std::string& runArgs,
   // is the output from the executable used ?
   if (out!=0)
     {
-    if (this->Makefile->GetDefinition(internalRunOutputName.c_str()) == 0)
+    if (this->Makefile->GetDefinition(internalRunOutputName) == 0)
       {
       // if the variables doesn't exist, create it with a helpful error text
       // and mark it as advanced
@@ -284,15 +308,17 @@ void cmTryRunCommand::DoNotRunExecutable(const std::string& runArgs,
            "would have printed on stdout and stderr on its target platform.\n";
       comment += detailsString;
 
-      this->Makefile->AddCacheDefinition(internalRunOutputName.c_str(),
+      this->Makefile->AddCacheDefinition(internalRunOutputName,
                                          "PLEASE_FILL_OUT-NOTFOUND",
                                          comment.c_str(),
-                                         cmCacheManager::STRING);
-      cmCacheManager::CacheIterator it = this->Makefile->GetCacheManager()->
-                               GetCacheIterator(internalRunOutputName.c_str());
-      if ( !it.IsAtEnd() )
+                                         cmState::STRING);
+      cmState* state = this->Makefile->GetState();
+      const char* existing =
+          state->GetCacheEntryValue(internalRunOutputName);
+      if (existing)
         {
-        it.SetProperty("ADVANCED", "1");
+        state->SetCacheEntryProperty(internalRunOutputName,
+                                      "ADVANCED", "1");
         }
 
       error = true;
@@ -302,7 +328,7 @@ void cmTryRunCommand::DoNotRunExecutable(const std::string& runArgs,
   if (error)
     {
     static bool firstTryRun = true;
-    std::ofstream file(resultFileName.c_str(),
+    cmsys::ofstream file(resultFileName.c_str(),
                                   firstTryRun ? std::ios::out : std::ios::app);
     if ( file )
       {
@@ -349,18 +375,18 @@ void cmTryRunCommand::DoNotRunExecutable(const std::string& runArgs,
       comment += "Run arguments : ";
       comment += runArgs;
       comment += "\n";
-      comment += "   Called from: " + this->Makefile->GetListFileStack();
+      comment += "   Called from: " + this->Makefile->FormatListFileStack();
       cmsys::SystemTools::ReplaceString(comment, "\n", "\n# ");
       file << comment << "\n\n";
 
-      file << "SET( " << this->RunResultVariable << " \n     \""
-           << this->Makefile->GetDefinition(this->RunResultVariable.c_str())
+      file << "set( " << this->RunResultVariable << " \n     \""
+           << this->Makefile->GetDefinition(this->RunResultVariable)
            << "\"\n     CACHE STRING \"Result from TRY_RUN\" FORCE)\n\n";
 
       if (out!=0)
         {
-        file << "SET( " << internalRunOutputName << " \n     \""
-             << this->Makefile->GetDefinition(internalRunOutputName.c_str())
+        file << "set( " << internalRunOutputName << " \n     \""
+             << this->Makefile->GetDefinition(internalRunOutputName)
              << "\"\n     CACHE STRING \"Output from TRY_RUN\" FORCE)\n\n";
         }
       file.close();
@@ -382,6 +408,6 @@ void cmTryRunCommand::DoNotRunExecutable(const std::string& runArgs,
 
   if (out!=0)
     {
-    (*out) = this->Makefile->GetDefinition(internalRunOutputName.c_str());
+    (*out) = this->Makefile->GetDefinition(internalRunOutputName);
     }
 }

@@ -16,14 +16,23 @@
 #include "cmLocalUnixMakefileGenerator3.h"
 #include "cmMakefile.h"
 #include "cmSourceFile.h"
-#include "cmTarget.h"
 
 //----------------------------------------------------------------------------
 cmMakefileUtilityTargetGenerator
-::cmMakefileUtilityTargetGenerator(cmTarget* target):
+::cmMakefileUtilityTargetGenerator(cmGeneratorTarget* target):
   cmMakefileTargetGenerator(target)
 {
   this->CustomCommandDriver = OnUtility;
+  this->OSXBundleGenerator = new cmOSXBundleGenerator(target,
+                                                      this->ConfigName);
+  this->OSXBundleGenerator->SetMacContentFolders(&this->MacContentFolders);
+}
+
+//----------------------------------------------------------------------------
+cmMakefileUtilityTargetGenerator
+::~cmMakefileUtilityTargetGenerator()
+{
+  delete this->OSXBundleGenerator;
 }
 
 //----------------------------------------------------------------------------
@@ -32,7 +41,8 @@ void cmMakefileUtilityTargetGenerator::WriteRuleFiles()
   this->CreateRuleFile();
 
   *this->BuildFileStream
-    << "# Utility rule file for " << this->Target->GetName() << ".\n\n";
+    << "# Utility rule file for "
+    << this->GeneratorTarget->GetName() << ".\n\n";
 
   if(!this->NoRuleMessages)
     {
@@ -41,10 +51,10 @@ void cmMakefileUtilityTargetGenerator::WriteRuleFiles()
     // Include the progress variables for the target.
     *this->BuildFileStream
       << "# Include the progress variables for this target.\n"
-      << this->LocalGenerator->IncludeDirective << " " << root
-      << this->Convert(this->ProgressFileNameFull.c_str(),
+      << this->GlobalGenerator->IncludeDirective << " " << root
+      << this->Convert(this->ProgressFileNameFull,
                        cmLocalGenerator::HOME_OUTPUT,
-                       cmLocalGenerator::MAKEFILE)
+                       cmLocalGenerator::MAKERULE)
       << "\n\n";
     }
 
@@ -57,19 +67,21 @@ void cmMakefileUtilityTargetGenerator::WriteRuleFiles()
 
   // Utility targets store their rules in pre- and post-build commands.
   this->LocalGenerator->AppendCustomDepends
-    (depends, this->Target->GetPreBuildCommands());
+    (depends, this->GeneratorTarget->GetPreBuildCommands());
 
   this->LocalGenerator->AppendCustomDepends
-    (depends, this->Target->GetPostBuildCommands());
+    (depends, this->GeneratorTarget->GetPostBuildCommands());
 
   this->LocalGenerator->AppendCustomCommands
-    (commands, this->Target->GetPreBuildCommands(), this->Target);
+    (commands, this->GeneratorTarget->GetPreBuildCommands(),
+     this->GeneratorTarget);
 
   // Depend on all custom command outputs for sources
   this->DriveCustomCommands(depends);
 
   this->LocalGenerator->AppendCustomCommands
-    (commands, this->Target->GetPostBuildCommands(), this->Target);
+    (commands, this->GeneratorTarget->GetPostBuildCommands(),
+     this->GeneratorTarget);
 
   // Add dependencies on targets that must be built first.
   this->AppendTargetDepends(depends);
@@ -91,11 +103,11 @@ void cmMakefileUtilityTargetGenerator::WriteRuleFiles()
 
   // Write the rule.
   this->LocalGenerator->WriteMakeRule(*this->BuildFileStream, 0,
-                                      this->Target->GetName(),
+                                      this->GeneratorTarget->GetName(),
                                       depends, commands, true);
 
   // Write the main driver rule to build everything in this target.
-  this->WriteTargetDriverRule(this->Target->GetName(), false);
+  this->WriteTargetDriverRule(this->GeneratorTarget->GetName(), false);
 
   // Write clean target
   this->WriteTargetCleanRules();

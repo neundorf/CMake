@@ -15,11 +15,13 @@
 #include "cmMakefile.h"
 #include "cmGeneratedFileStream.h"
 #include "cmCPackLog.h"
+#include "cmArchiveWrite.h"
 
 #include <cmsys/SystemTools.hxx>
 #include <cmsys/Glob.hxx>
 
 #include <limits.h> // USHRT_MAX
+#include <sys/stat.h>
 
 // NOTE:
 // A debian package .deb is simply an 'ar' archive. The only subtle difference
@@ -58,7 +60,7 @@ int cmCPackDebGenerator::PackageOnePack(std::string initialTopLevel,
   // Begin the archive for this pack
   std::string localToplevel(initialTopLevel);
   std::string packageFileName(
-      cmSystemTools::GetParentDirectory(toplevel.c_str())
+      cmSystemTools::GetParentDirectory(toplevel)
   );
   std::string outputFileName(
       std::string(this->GetOption("CPACK_PACKAGE_FILE_NAME"))
@@ -76,6 +78,11 @@ int cmCPackDebGenerator::PackageOnePack(std::string initialTopLevel,
       packageFileName.c_str());
   // Tell CPackDeb.cmake the name of the component GROUP.
   this->SetOption("CPACK_DEB_PACKAGE_COMPONENT",packageName.c_str());
+  // Tell CPackDeb.cmake the path where the component is.
+  std::string component_path = "/";
+  component_path += packageName;
+  this->SetOption("CPACK_DEB_PACKAGE_COMPONENT_PART_PATH",
+                  component_path.c_str());
   if (!this->ReadListFile("CPackDeb.cmake"))
     {
     cmCPackLogger(cmCPackLog::LOG_ERROR,
@@ -85,9 +92,10 @@ int cmCPackDebGenerator::PackageOnePack(std::string initialTopLevel,
     }
 
   cmsys::Glob gl;
-  std::string findExpr(this->GetOption("WDIR"));
+  std::string findExpr(this->GetOption("GEN_WDIR"));
   findExpr += "/*";
   gl.RecurseOn();
+  gl.SetRecurseListDirs(true);
   if ( !gl.FindFiles(findExpr) )
     {
     cmCPackLogger(cmCPackLog::LOG_ERROR,
@@ -181,7 +189,7 @@ int cmCPackDebGenerator::PackageComponentsAllInOne()
   // The ALL GROUPS in ONE package case
   std::string localToplevel(initialTopLevel);
   std::string packageFileName(
-      cmSystemTools::GetParentDirectory(toplevel.c_str())
+      cmSystemTools::GetParentDirectory(toplevel)
                              );
   std::string outputFileName(
             std::string(this->GetOption("CPACK_PACKAGE_FILE_NAME"))
@@ -198,8 +206,11 @@ int cmCPackDebGenerator::PackageComponentsAllInOne()
   /* replace the TEMPORARY package file name */
   this->SetOption("CPACK_TEMPORARY_PACKAGE_FILE_NAME",
       packageFileName.c_str());
-  // Tell CPackDeb.cmake the name of the component GROUP.
-  this->SetOption("CPACK_DEB_PACKAGE_COMPONENT",compInstDirName.c_str());
+  // Tell CPackDeb.cmake the path where the component is.
+  std::string component_path = "/";
+  component_path += compInstDirName;
+  this->SetOption("CPACK_DEB_PACKAGE_COMPONENT_PART_PATH",
+                  component_path.c_str());
   if (!this->ReadListFile("CPackDeb.cmake"))
     {
     cmCPackLogger(cmCPackLog::LOG_ERROR,
@@ -209,9 +220,10 @@ int cmCPackDebGenerator::PackageComponentsAllInOne()
     }
 
   cmsys::Glob gl;
-  std::string findExpr(this->GetOption("WDIR"));
+  std::string findExpr(this->GetOption("GEN_WDIR"));
   findExpr += "/*";
   gl.RecurseOn();
+  gl.SetRecurseListDirs(true);
   if ( !gl.FindFiles(findExpr) )
     {
     cmCPackLogger(cmCPackLog::LOG_ERROR,
@@ -236,7 +248,7 @@ int cmCPackDebGenerator::PackageFiles()
   int retval = -1;
 
   /* Are we in the component packaging case */
-  if (SupportsComponentInstallation()) {
+  if (WantsComponentInstallation()) {
     // CASE 1 : COMPONENT ALL-IN-ONE package
     // If ALL GROUPS or ALL COMPONENTS in ONE package has been requested
     // then the package file is unique and should be open here.
@@ -274,11 +286,9 @@ int cmCPackDebGenerator::PackageFiles()
 
 int cmCPackDebGenerator::createDeb()
 {
-  const char* cmakeExecutable = this->GetOption("CMAKE_COMMAND");
-
   // debian-binary file
   std::string dbfilename;
-    dbfilename += this->GetOption("WDIR");
+    dbfilename += this->GetOption("GEN_WDIR");
   dbfilename += "/debian-binary";
     { // the scope is needed for cmGeneratedFileStream
     cmGeneratedFileStream out(dbfilename.c_str());
@@ -288,44 +298,50 @@ int cmCPackDebGenerator::createDeb()
 
   // control file
   std::string ctlfilename;
-    ctlfilename = this->GetOption("WDIR");
+    ctlfilename = this->GetOption("GEN_WDIR");
   ctlfilename += "/control";
 
   // debian policy enforce lower case for package name
   // mandatory entries:
-  std::string debian_pkg_name = cmsys::SystemTools::LowerCase( 
-                                this->GetOption("CPACK_DEBIAN_PACKAGE_NAME") );
-  const char* debian_pkg_version = 
-                               this->GetOption("CPACK_DEBIAN_PACKAGE_VERSION");
-  const char* debian_pkg_section = 
-                               this->GetOption("CPACK_DEBIAN_PACKAGE_SECTION");
-  const char* debian_pkg_priority = 
-                              this->GetOption("CPACK_DEBIAN_PACKAGE_PRIORITY");
-  const char* debian_pkg_arch = 
-                          this->GetOption("CPACK_DEBIAN_PACKAGE_ARCHITECTURE");
-  const char* maintainer =  this->GetOption("CPACK_DEBIAN_PACKAGE_MAINTAINER");
-  const char* desc =       this->GetOption("CPACK_DEBIAN_PACKAGE_DESCRIPTION");
+  std::string debian_pkg_name = cmsys::SystemTools::LowerCase(
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_NAME") );
+  const char* debian_pkg_version =
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_VERSION");
+  const char* debian_pkg_section =
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_SECTION");
+  const char* debian_pkg_priority =
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_PRIORITY");
+  const char* debian_pkg_arch =
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_ARCHITECTURE");
+  const char* maintainer =
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_MAINTAINER");
+  const char* desc =
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_DESCRIPTION");
 
   // optional entries
-  const char* debian_pkg_dep = this->GetOption("CPACK_DEBIAN_PACKAGE_DEPENDS");
+  const char* debian_pkg_dep =
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_DEPENDS");
   const char* debian_pkg_rec =
-                            this->GetOption("CPACK_DEBIAN_PACKAGE_RECOMMENDS");
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_RECOMMENDS");
   const char* debian_pkg_sug =
-                              this->GetOption("CPACK_DEBIAN_PACKAGE_SUGGESTS");
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_SUGGESTS");
   const char* debian_pkg_url =
-                              this->GetOption("CPACK_DEBIAN_PACKAGE_HOMEPAGE");
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_HOMEPAGE");
   const char* debian_pkg_predep =
-                    this->GetOption("CPACK_DEBIAN_PACKAGE_PREDEPENDS");
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_PREDEPENDS");
   const char* debian_pkg_enhances =
-                    this->GetOption("CPACK_DEBIAN_PACKAGE_ENHANCES");
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_ENHANCES");
   const char* debian_pkg_breaks =
-                    this->GetOption("CPACK_DEBIAN_PACKAGE_BREAKS");
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_BREAKS");
   const char* debian_pkg_conflicts =
-                    this->GetOption("CPACK_DEBIAN_PACKAGE_CONFLICTS");
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_CONFLICTS");
   const char* debian_pkg_provides =
-                    this->GetOption("CPACK_DEBIAN_PACKAGE_PROVIDES");
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_PROVIDES");
   const char* debian_pkg_replaces =
-                    this->GetOption("CPACK_DEBIAN_PACKAGE_REPLACES");
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_REPLACES");
+  const char* debian_pkg_source =
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_SOURCE");
+
 
     { // the scope is needed for cmGeneratedFileStream
     cmGeneratedFileStream out(ctlfilename.c_str());
@@ -334,6 +350,10 @@ int cmCPackDebGenerator::createDeb()
     out << "Section: " << debian_pkg_section << "\n";
     out << "Priority: " << debian_pkg_priority << "\n";
     out << "Architecture: " << debian_pkg_arch << "\n";
+    if(debian_pkg_source && *debian_pkg_source)
+      {
+      out << "Source: " << debian_pkg_source << "\n";
+      }
     if(debian_pkg_dep && *debian_pkg_dep)
       {
       out << "Depends: " << debian_pkg_dep << "\n";
@@ -378,11 +398,11 @@ int cmCPackDebGenerator::createDeb()
     {
       std::string dirName = this->GetOption("CPACK_TEMPORARY_DIRECTORY");
       dirName += '/';
-        for (std::vector<std::string>::const_iterator fileIt =
-              packageFiles.begin();
-              fileIt != packageFiles.end(); ++ fileIt )
+      for (std::vector<std::string>::const_iterator fileIt =
+           packageFiles.begin();
+           fileIt != packageFiles.end(); ++ fileIt )
         {
-        totalSize += cmSystemTools::FileLength(fileIt->c_str());
+        totalSize += cmSystemTools::FileLength(*fileIt);
         }
     }
     out << "Installed-Size: " << (totalSize + 1023) / 1024 << "\n";
@@ -391,84 +411,146 @@ int cmCPackDebGenerator::createDeb()
     out << std::endl;
     }
 
-  std::string cmd;
-  if (NULL != this->GetOption("CPACK_DEBIAN_FAKEROOT_EXECUTABLE")) {
-      cmd += this->GetOption("CPACK_DEBIAN_FAKEROOT_EXECUTABLE");
+  const std::string strGenWDIR(this->GetOption("GEN_WDIR"));
+
+  cmArchiveWrite::Compress tar_compression_type = cmArchiveWrite::CompressGZip;
+  const char* debian_compression_type =
+      this->GetOption("GEN_CPACK_DEBIAN_COMPRESSION_TYPE");
+  if(!debian_compression_type)
+    {
+    debian_compression_type = "gzip";
+    }
+
+  std::string compression_suffix;
+  if(!strcmp(debian_compression_type, "lzma")) {
+      compression_suffix = ".lzma";
+      tar_compression_type = cmArchiveWrite::CompressLZMA;
+  } else if(!strcmp(debian_compression_type, "xz")) {
+      compression_suffix = ".xz";
+      tar_compression_type = cmArchiveWrite::CompressXZ;
+  } else if(!strcmp(debian_compression_type, "bzip2")) {
+      compression_suffix = ".bz2";
+      tar_compression_type = cmArchiveWrite::CompressBZip2;
+  } else if(!strcmp(debian_compression_type, "gzip")) {
+      compression_suffix = ".gz";
+      tar_compression_type = cmArchiveWrite::CompressGZip;
+  } else if(!strcmp(debian_compression_type, "none")) {
+      compression_suffix = "";
+      tar_compression_type = cmArchiveWrite::CompressNone;
+  } else {
+      cmCPackLogger(cmCPackLog::LOG_ERROR,
+                    "Error unrecognized compression type: "
+                    << debian_compression_type << std::endl);
   }
-  cmd += " \"";
-  cmd += cmakeExecutable;
-  cmd += "\" -E tar cfz data.tar.gz ";
 
-  // now add all directories which have to be compressed
-  // collect all top level install dirs for that
-  // e.g. /opt/bin/foo, /usr/bin/bar and /usr/bin/baz would give /usr and /opt
-    size_t topLevelLength = std::string(this->GetOption("WDIR")).length();
-    cmCPackLogger(cmCPackLog::LOG_DEBUG, "WDIR: \"" << this->GetOption("WDIR")
-          << "\", length = " << topLevelLength
-          << std::endl);
-  std::set<std::string> installDirs;
-    for (std::vector<std::string>::const_iterator fileIt =
-        packageFiles.begin();
-        fileIt != packageFiles.end(); ++ fileIt )
-    {
-      cmCPackLogger(cmCPackLog::LOG_DEBUG, "FILEIT: \"" << *fileIt << "\""
-          << std::endl);
-    std::string::size_type slashPos = fileIt->find('/', topLevelLength+1);
-    std::string relativeDir = fileIt->substr(topLevelLength,
-                                             slashPos - topLevelLength);
-      cmCPackLogger(cmCPackLog::LOG_DEBUG, "RELATIVEDIR: \"" << relativeDir
-      << "\"" << std::endl);
-    if (installDirs.find(relativeDir) == installDirs.end())
+
+  std::string filename_data_tar = strGenWDIR
+      + "/data.tar" + compression_suffix;
+
+  // atomic file generation for data.tar
+  {
+    cmGeneratedFileStream fileStream_data_tar;
+    fileStream_data_tar.Open(filename_data_tar.c_str(), false, true);
+    if(!fileStream_data_tar)
       {
-      installDirs.insert(relativeDir);
-      cmd += " .";
-      cmd += relativeDir;
+      cmCPackLogger(cmCPackLog::LOG_ERROR,
+          "Error opening the file \"" << filename_data_tar << "\" for writing"
+          << std::endl);
+      return 0;
       }
-    }
+    cmArchiveWrite data_tar(fileStream_data_tar, tar_compression_type, "paxr");
 
-  std::string output;
-    int retval = -1;
-  int res = cmSystemTools::RunSingleCommand(cmd.c_str(), &output,
-      &retval, this->GetOption("WDIR"), this->GeneratorVerbose, 0);
+    // uid/gid should be the one of the root user, and this root user has
+    // always uid/gid equal to 0.
+    data_tar.SetUIDAndGID(0u, 0u);
+    data_tar.SetUNAMEAndGNAME("root", "root");
 
-    if ( !res || retval )
-    {
-    std::string tmpFile = this->GetOption("CPACK_TOPLEVEL_DIRECTORY");
-    tmpFile += "/Deb.log";
-    cmGeneratedFileStream ofs(tmpFile.c_str());
-    ofs << "# Run command: " << cmd.c_str() << std::endl
-      << "# Working directory: " << toplevel << std::endl
-      << "# Output:" << std::endl
-      << output.c_str() << std::endl;
-    cmCPackLogger(cmCPackLog::LOG_ERROR, "Problem running tar command: "
-      << cmd.c_str() << std::endl
-      << "Please check " << tmpFile.c_str() << " for errors" << std::endl);
-    return 0;
-    }
+    // now add all directories which have to be compressed
+    // collect all top level install dirs for that
+    // e.g. /opt/bin/foo, /usr/bin/bar and /usr/bin/baz would
+    // give /usr and /opt
+    size_t topLevelLength = strGenWDIR.length();
+    cmCPackLogger(cmCPackLog::LOG_DEBUG, "WDIR: \""
+            << strGenWDIR
+            << "\", length = " << topLevelLength
+            << std::endl);
+    std::set<std::string> orderedFiles;
 
-  std::string md5filename;
-    md5filename = this->GetOption("WDIR");
-  md5filename += "/md5sums";
+    // we have to reconstruct the parent folders as well
 
-    { // the scope is needed for cmGeneratedFileStream
+    for (std::vector<std::string>::const_iterator fileIt =
+         packageFiles.begin();
+         fileIt != packageFiles.end(); ++ fileIt )
+      {
+      std::string currentPath = *fileIt;
+      while(currentPath != strGenWDIR)
+        {
+        // the last one IS strGenWDIR, but we do not want this one:
+        // XXX/application/usr/bin/myprogram with GEN_WDIR=XXX/application
+        // should not add XXX/application
+        orderedFiles.insert(currentPath);
+        currentPath = cmSystemTools::CollapseCombinedPath(currentPath, "..");
+        }
+      }
+
+
+    for (std::set<std::string>::const_iterator fileIt =
+         orderedFiles.begin();
+         fileIt != orderedFiles.end(); ++ fileIt )
+      {
+      cmCPackLogger(cmCPackLog::LOG_DEBUG, "FILEIT: \"" << *fileIt << "\""
+                    << std::endl);
+      std::string::size_type slashPos = fileIt->find('/', topLevelLength+1);
+      std::string relativeDir = fileIt->substr(topLevelLength,
+                                               slashPos - topLevelLength);
+      cmCPackLogger(cmCPackLog::LOG_DEBUG, "RELATIVEDIR: \"" << relativeDir
+                    << "\"" << std::endl);
+
+      // do not recurse because the loop will do it
+      if(!data_tar.Add(*fileIt, topLevelLength, ".", false))
+        {
+        cmCPackLogger(cmCPackLog::LOG_ERROR,
+                      "Problem adding file to tar:" << std::endl
+                      << "#top level directory: "
+                      << strGenWDIR << std::endl
+                      << "#file: " << *fileIt << std::endl
+                      << "#error:" << data_tar.GetError() << std::endl);
+        return 0;
+        }
+      }
+  } // scope for file generation
+
+
+  std::string md5filename = strGenWDIR + "/md5sums";
+  {
+    // the scope is needed for cmGeneratedFileStream
     cmGeneratedFileStream out(md5filename.c_str());
-    std::vector<std::string>::const_iterator fileIt;
-//       std::string topLevelWithTrailingSlash = toplevel;
+
     std::string topLevelWithTrailingSlash =
         this->GetOption("CPACK_TEMPORARY_DIRECTORY");
     topLevelWithTrailingSlash += '/';
-      for ( fileIt = packageFiles.begin();
-            fileIt != packageFiles.end(); ++ fileIt )
+    for (std::vector<std::string>::const_iterator fileIt =
+           packageFiles.begin();
+         fileIt != packageFiles.end(); ++ fileIt )
       {
-      cmd = "\"";
-      cmd += cmakeExecutable;
-      cmd += "\" -E md5sum \"";
-      cmd += *fileIt;
-      cmd += "\"";
-      //std::string output;
-      //int retVal = -1;
-      res = cmSystemTools::RunSingleCommand(cmd.c_str(), &output,
-          &retval, toplevel.c_str(), this->GeneratorVerbose, 0);
+      // hash only regular files
+      if(   cmSystemTools::FileIsDirectory(*fileIt)
+         || cmSystemTools::FileIsSymlink(*fileIt))
+        {
+        continue;
+        }
+
+      char md5sum[33];
+      if(!cmSystemTools::ComputeFileMD5(*fileIt, md5sum))
+        {
+        cmCPackLogger(cmCPackLog::LOG_ERROR, "Problem computing the md5 of "
+                      << *fileIt << std::endl);
+        }
+
+      md5sum[32] = 0;
+
+      std::string output(md5sum);
+      output += "  " + *fileIt + "\n";
       // debian md5sums entries are like this:
       // 014f3604694729f3bf19263bac599765  usr/bin/ccmake
       // thus strip the full path (with the trailing slash)
@@ -478,66 +560,116 @@ int cmCPackDebGenerator::createDeb()
       }
     // each line contains a eol.
     // Do not end the md5sum file with yet another (invalid)
-    }
+  }
 
-  cmd = "\"";
-  cmd += cmakeExecutable;
-  cmd += "\" -E tar cfz control.tar.gz ./control ./md5sums";
-  const char* controlExtra =
-    this->GetOption("CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA");
-  if( controlExtra )
-    {
-    std::vector<std::string> controlExtraList;
-    cmSystemTools::ExpandListArgument(controlExtra, controlExtraList);
-    for(std::vector<std::string>::iterator i =
-          controlExtraList.begin(); i != controlExtraList.end(); ++i)
+
+
+  std::string filename_control_tar = strGenWDIR + "/control.tar.gz";
+  // atomic file generation for control.tar
+  {
+    cmGeneratedFileStream fileStream_control_tar;
+    fileStream_control_tar.Open(filename_control_tar.c_str(), false, true);
+    if(!fileStream_control_tar)
       {
-      std::string filenamename =
-        cmsys::SystemTools::GetFilenameName(i->c_str());
-      std::string localcopy = this->GetOption("WDIR");
-      localcopy += "/";
-      localcopy += filenamename;
-      // if we can copy the file, it means it does exist, let's add it:
-      if( cmsys::SystemTools::CopyFileIfDifferent(
-            i->c_str(), localcopy.c_str()) )
+      cmCPackLogger(cmCPackLog::LOG_ERROR,
+          "Error opening the file \"" << filename_control_tar
+          << "\" for writing" << std::endl);
+      return 0;
+      }
+    cmArchiveWrite control_tar(fileStream_control_tar,
+                               cmArchiveWrite::CompressGZip,
+                               "paxr");
+
+    // sets permissions and uid/gid for the files
+    control_tar.SetUIDAndGID(0u, 0u);
+    control_tar.SetUNAMEAndGNAME("root", "root");
+
+    /* permissions are set according to
+    https://www.debian.org/doc/debian-policy/ch-files.html#s-permissions-owners
+    and
+    https://lintian.debian.org/tags/control-file-has-bad-permissions.html
+    */
+    const mode_t permission644 = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+    const mode_t permissionExecute = S_IXUSR | S_IXGRP | S_IXOTH;
+    const mode_t permission755 = permission644 | permissionExecute;
+
+    // for md5sum and control (that we have generated here), we use 644
+    // (RW-R--R--)
+    // so that deb lintian doesn't warn about it
+    control_tar.SetPermissions(permission644);
+
+    // adds control and md5sums
+    if(   !control_tar.Add(md5filename, strGenWDIR.length(), ".")
+       || !control_tar.Add(strGenWDIR + "/control", strGenWDIR.length(), "."))
+      {
+        cmCPackLogger(cmCPackLog::LOG_ERROR,
+            "Error adding file to tar:" << std::endl
+            << "#top level directory: "
+               << strGenWDIR << std::endl
+            << "#file: \"control\" or \"md5sums\"" << std::endl
+            << "#error:" << control_tar.GetError() << std::endl);
+        return 0;
+      }
+
+    // for the other files, we use
+    // -either the original permission on the files
+    // -either a permission strictly defined by the Debian policies
+    const char* controlExtra =
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA");
+    if( controlExtra )
+      {
+      // permissions are now controlled by the original file permissions
+
+      const bool permissionStrictPolicy =
+        this->IsSet("GEN_CPACK_DEBIAN_PACKAGE_CONTROL_STRICT_PERMISSION");
+
+      static const char* strictFiles[] = {
+        "config", "postinst", "postrm", "preinst", "prerm"
+        };
+      std::set<std::string> setStrictFiles(
+        strictFiles,
+        strictFiles + sizeof(strictFiles)/sizeof(strictFiles[0]));
+
+      // default
+      control_tar.ClearPermissions();
+
+      std::vector<std::string> controlExtraList;
+      cmSystemTools::ExpandListArgument(controlExtra, controlExtraList);
+      for(std::vector<std::string>::iterator i = controlExtraList.begin();
+          i != controlExtraList.end(); ++i)
         {
-        // debian is picky and need relative to ./ path in the tar.gz
-        cmd += " ./";
-        cmd += filenamename;
+        std::string filenamename =
+          cmsys::SystemTools::GetFilenameName(*i);
+        std::string localcopy = strGenWDIR + "/" + filenamename;
+
+        if(permissionStrictPolicy)
+          {
+          control_tar.SetPermissions(setStrictFiles.count(filenamename) ?
+            permission755 : permission644);
+          }
+
+        // if we can copy the file, it means it does exist, let's add it:
+        if( cmsys::SystemTools::CopyFileIfDifferent(*i, localcopy) )
+          {
+          control_tar.Add(localcopy, strGenWDIR.length(), ".");
+          }
         }
       }
-    }
-  res = cmSystemTools::RunSingleCommand(cmd.c_str(), &output,
-      &retval, this->GetOption("WDIR"), this->GeneratorVerbose, 0);
+  }
 
-    if ( !res || retval )
-    {
-    std::string tmpFile = this->GetOption("CPACK_TOPLEVEL_DIRECTORY");
-    tmpFile += "/Deb.log";
-    cmGeneratedFileStream ofs(tmpFile.c_str());
-    ofs << "# Run command: " << cmd.c_str() << std::endl
-      << "# Working directory: " << toplevel << std::endl
-      << "# Output:" << std::endl
-      << output.c_str() << std::endl;
-    cmCPackLogger(cmCPackLog::LOG_ERROR, "Problem running tar command: "
-      << cmd.c_str() << std::endl
-      << "Please check " << tmpFile.c_str() << " for errors" << std::endl);
-    return 0;
-    }
 
-  // ar -r your-package-name.deb debian-binary control.tar.gz data.tar.gz
+  // ar -r your-package-name.deb debian-binary control.tar.* data.tar.*
   // since debian packages require BSD ar (most Linux distros and even
   // FreeBSD and NetBSD ship GNU ar) we use a copy of OpenBSD ar here.
   std::vector<std::string> arFiles;
-    std::string topLevelString = this->GetOption("WDIR");
-  topLevelString += "/";
+  std::string topLevelString = strGenWDIR + "/";
   arFiles.push_back(topLevelString + "debian-binary");
   arFiles.push_back(topLevelString + "control.tar.gz");
-  arFiles.push_back(topLevelString + "data.tar.gz");
-    std::string outputFileName = this->GetOption("CPACK_TOPLEVEL_DIRECTORY");
-    outputFileName += "/";
-    outputFileName += this->GetOption("CPACK_OUTPUT_FILE_NAME");
-    res = ar_append(outputFileName.c_str(), arFiles);
+  arFiles.push_back(topLevelString + "data.tar" + compression_suffix);
+  std::string outputFileName = this->GetOption("CPACK_TOPLEVEL_DIRECTORY");
+  outputFileName += "/";
+  outputFileName += this->GetOption("CPACK_OUTPUT_FILE_NAME");
+  int res = ar_append(outputFileName.c_str(), arFiles);
   if ( res!=0 )
     {
     std::string tmpFile = this->GetOption("CPACK_TEMPORARY_PACKAGE_FILE_NAME");
@@ -575,9 +707,9 @@ std::string cmCPackDebGenerator::GetComponentInstallDirNameSuffix(
   // the current COMPONENT belongs to.
   std::string groupVar = "CPACK_COMPONENT_" +
         cmSystemTools::UpperCase(componentName) + "_GROUP";
-    if (NULL != GetOption(groupVar.c_str()))
+    if (NULL != GetOption(groupVar))
       {
-      return std::string(GetOption(groupVar.c_str()));
+      return std::string(GetOption(groupVar));
       }
     else
       {
@@ -714,8 +846,8 @@ static int copy_ar(CF *cfp, off_t size)
 
   FILE* from = cfp->rFile;
   FILE* to = cfp->wFile;
-  while (sz && 
-        (nr = fread(buf, 1, sz < static_cast<off_t>(sizeof(buf)) 
+  while (sz &&
+        (nr = fread(buf, 1, sz < static_cast<off_t>(sizeof(buf))
                     ? static_cast<size_t>(sz) : sizeof(buf), from ))
                > 0) {
     sz -= nr;
@@ -726,7 +858,7 @@ static int copy_ar(CF *cfp, off_t size)
   if (sz)
     return -2;
 
-  if (cfp->flags & WPAD && (size + ar_already_written) & 1 
+  if (cfp->flags & WPAD && (size + ar_already_written) & 1
       && fwrite(&pad, 1, 1, to) != 1)
     return -4;
 
@@ -758,13 +890,15 @@ static int put_arobj(CF *cfp, struct stat *sb)
     }
   if (lname > sizeof(hdr->ar_name) || strchr(name, ' '))
     (void)sprintf(ar_hb, HDR1, AR_EFMT1, (int)lname,
-                  (long int)sb->st_mtime, uid, gid, sb->st_mode,
-                  (long long)sb->st_size + lname, ARFMAG);
+                  (long int)sb->st_mtime, (unsigned)uid, (unsigned)gid,
+                  (unsigned)sb->st_mode, (long long)sb->st_size + lname,
+                  ARFMAG);
     else {
       lname = 0;
-      (void)sprintf(ar_hb, HDR2, name, 
-                    (long int)sb->st_mtime, uid, gid, sb->st_mode, 
-                    (long long)sb->st_size, ARFMAG);
+      (void)sprintf(ar_hb, HDR2, name,
+                    (long int)sb->st_mtime, (unsigned)uid, (unsigned)gid,
+                    (unsigned)sb->st_mode, (long long)sb->st_size,
+                    ARFMAG);
       }
     off_t size = sb->st_size;
 
@@ -785,12 +919,12 @@ static int put_arobj(CF *cfp, struct stat *sb)
 
 /* append --
  *      Append files to the archive - modifies original archive or creates
- *      a new archive if named archive does not exist. 
+ *      a new archive if named archive does not exist.
  */
 static int ar_append(const char* archive,const std::vector<std::string>& files)
 {
   int eval = 0;
-  FILE* aFile = fopen(archive, "wb+");
+  FILE* aFile = cmSystemTools::Fopen(archive, "wb+");
   if (aFile!=NULL) {
     fwrite(ARMAG, SARMAG, 1, aFile);
     if (fseek(aFile, 0, SEEK_END) != -1) {
@@ -801,7 +935,7 @@ static int ar_append(const char* archive,const std::vector<std::string>& files)
       for(std::vector<std::string>::const_iterator fileIt = files.begin();
           fileIt!=files.end(); ++fileIt) {
         const char* filename = fileIt->c_str();
-        FILE* file = fopen(filename, "rb");
+        FILE* file = cmSystemTools::Fopen(filename, "rb");
         if (file == NULL) {
           eval = -1;
           continue;

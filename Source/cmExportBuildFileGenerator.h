@@ -13,8 +13,9 @@
 #define cmExportBuildFileGenerator_h
 
 #include "cmExportFileGenerator.h"
+#include "cmListFileCache.h"
 
-class cmExportCommand;
+class cmExportSet;
 
 /** \class cmExportBuildFileGenerator
  * \brief Generate a file exporting targets from a build tree.
@@ -31,31 +32,51 @@ public:
   cmExportBuildFileGenerator();
 
   /** Set the list of targets to export.  */
-  void SetExports(std::vector<cmTarget*> const* exports)
-    { this->Exports = exports; }
+  void SetTargets(std::vector<std::string> const& targets)
+    { this->Targets = targets; }
+  void GetTargets(std::vector<std::string> &targets) const;
+  void AppendTargets(std::vector<std::string> const& targets)
+    { this->Targets.insert(this->Targets.end(),
+      targets.begin(), targets.end()); }
+  void SetExportSet(cmExportSet*);
 
   /** Set whether to append generated code to the output file.  */
   void SetAppendMode(bool append) { this->AppendMode = append; }
 
-  /** Set the command instance through which errors should be reported.  */
-  void SetCommand(cmExportCommand* cmd) { this->ExportCommand = cmd; }
+  void Compute(cmLocalGenerator* lg);
+
 protected:
   // Implement virtual methods from the superclass.
   virtual bool GenerateMainFile(std::ostream& os);
   virtual void GenerateImportTargetsConfig(std::ostream& os,
-                                           const char* config,
-                                           std::string const& suffix);
-  virtual void ComplainAboutMissingTarget(cmTarget* depender,
-                                          cmTarget* dependee);
+                                           const std::string& config,
+                                           std::string const& suffix,
+                            std::vector<std::string> &missingTargets);
+  virtual void HandleMissingTarget(std::string& link_libs,
+                                   std::vector<std::string>& missingTargets,
+                                   cmGeneratorTarget* depender,
+                                   cmGeneratorTarget* dependee);
+
+  void ComplainAboutMissingTarget(cmGeneratorTarget* depender,
+                                  cmGeneratorTarget* dependee,
+                                  int occurrences);
 
   /** Fill in properties indicating built file locations.  */
-  void SetImportLocationProperty(const char* config,
+  void SetImportLocationProperty(const std::string& config,
                                  std::string const& suffix,
-                                 cmTarget* target,
+                                 cmGeneratorTarget* target,
                                  ImportPropertyMap& properties);
 
-  std::vector<cmTarget*> const* Exports;
-  cmExportCommand* ExportCommand;
+  std::string InstallNameDir(cmGeneratorTarget* target,
+                             const std::string& config);
+
+  std::vector<std::string>
+  FindNamespaces(cmGlobalGenerator* gg, const std::string& name);
+
+  std::vector<std::string> Targets;
+  cmExportSet *ExportSet;
+  std::vector<cmGeneratorTarget*> Exports;
+  cmLocalGenerator* LG;
 };
 
 #endif

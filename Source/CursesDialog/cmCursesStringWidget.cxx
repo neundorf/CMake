@@ -15,14 +15,14 @@
 inline int ctrl(int z)
 {
     return (z&037);
-} 
+}
 
-cmCursesStringWidget::cmCursesStringWidget(int width, int height, 
+cmCursesStringWidget::cmCursesStringWidget(int width, int height,
                                            int left, int top) :
   cmCursesWidget(width, height, left, top)
 {
   this->InEdit = false;
-  this->Type = cmCacheManager::STRING;
+  this->Type = cmState::STRING;
   set_field_fore(this->Field,  A_NORMAL);
   set_field_back(this->Field,  A_STANDOUT);
   field_opts_off(this->Field,  O_STATIC);
@@ -63,7 +63,7 @@ void cmCursesStringWidget::OnType(int& key, cmCursesMainForm* fm, WINDOW*)
   form_driver(fm->GetForm(), key);
 }
 
-bool cmCursesStringWidget::HandleInput(int& key, cmCursesMainForm* fm, 
+bool cmCursesStringWidget::HandleInput(int& key, cmCursesMainForm* fm,
                                        WINDOW* w)
 {
   int x,y;
@@ -90,7 +90,7 @@ bool cmCursesStringWidget::HandleInput(int& key, cmCursesMainForm* fm,
 
     getmaxyx(stdscr, y, x);
     // If window too small, handle 'q' only
-    if ( x < cmCursesMainForm::MIN_WIDTH  || 
+    if ( x < cmCursesMainForm::MIN_WIDTH  ||
          y < cmCursesMainForm::MIN_HEIGHT )
       {
       // quit
@@ -100,7 +100,7 @@ bool cmCursesStringWidget::HandleInput(int& key, cmCursesMainForm* fm,
         }
       else
         {
-        key=getch(); 
+        key=getch();
         continue;
         }
       }
@@ -111,7 +111,7 @@ bool cmCursesStringWidget::HandleInput(int& key, cmCursesMainForm* fm,
       return false;
       }
     // 10 == enter
-    if (key == 10 || key == KEY_ENTER) 
+    if (key == 10 || key == KEY_ENTER)
       {
       this->OnReturn(fm, w);
       }
@@ -121,7 +121,7 @@ bool cmCursesStringWidget::HandleInput(int& key, cmCursesMainForm* fm,
               key == KEY_PPAGE || key == ctrl('u'))
       {
       this->InEdit = false;
-      delete[] this->OriginalString;     
+      delete[] this->OriginalString;
       // trick to force forms to update the field buffer
       form_driver(form, REQ_NEXT_FIELD);
       form_driver(form, REQ_PREV_FIELD);
@@ -136,8 +136,8 @@ bool cmCursesStringWidget::HandleInput(int& key, cmCursesMainForm* fm,
         fm->PrintKeys();
         this->SetString(this->OriginalString);
         delete[] this->OriginalString;
-        touchwin(w); 
-        wrefresh(w); 
+        touchwin(w);
+        wrefresh(w);
         return true;
         }
       }
@@ -165,20 +165,19 @@ bool cmCursesStringWidget::HandleInput(int& key, cmCursesMainForm* fm,
       {
       form_driver(form, REQ_END_FIELD);
       }
-    else if ( key == 127 || 
+    else if ( key == 127 ||
               key == KEY_BACKSPACE )
       {
-      if ( form->curcol > 0 )
-        {
+        FIELD *cur = current_field(form);
         form_driver(form, REQ_DEL_PREV);
-        }
+        if (current_field(form) != cur)
+          {
+          set_current_field(form, cur);
+          }
       }
     else if ( key == ctrl('d') ||key == KEY_DC )
       {
-      if ( form->curcol > 0 )
-        {
-        form_driver(form, REQ_DEL_CHAR);
-        }
+      form_driver(form, REQ_DEL_CHAR);
       }
     else
       {
@@ -186,16 +185,16 @@ bool cmCursesStringWidget::HandleInput(int& key, cmCursesMainForm* fm,
       }
     if ( !this->Done )
       {
-      touchwin(w); 
-      wrefresh(w); 
-      
-      key=getch(); 
+      touchwin(w);
+      wrefresh(w);
+
+      key=getch();
       }
     }
   return true;
 }
 
-void cmCursesStringWidget::SetString(const char* value)
+void cmCursesStringWidget::SetString(const std::string& value)
 {
   this->SetValue(value);
 }
@@ -214,13 +213,14 @@ bool cmCursesStringWidget::PrintKeys()
 {
   int x,y;
   getmaxyx(stdscr, y, x);
-  if ( x < cmCursesMainForm::MIN_WIDTH  || 
+  if ( x < cmCursesMainForm::MIN_WIDTH  ||
        y < cmCursesMainForm::MIN_HEIGHT )
     {
     return false;
     }
   if (this->InEdit)
     {
+    char fmt_s[] = "%s";
     char firstLine[512];
     // Clean the toolbar
     for(int i=0; i<512; i++)
@@ -229,17 +229,16 @@ bool cmCursesStringWidget::PrintKeys()
       }
     firstLine[511] = '\0';
     curses_move(y-4,0);
-    printw(firstLine);
+    printw(fmt_s, firstLine);
     curses_move(y-3,0);
-    printw(firstLine);
+    printw(fmt_s, firstLine);
     curses_move(y-2,0);
-    printw(firstLine);
+    printw(fmt_s, firstLine);
     curses_move(y-1,0);
-    printw(firstLine);
+    printw(fmt_s, firstLine);
 
-    sprintf(firstLine,  "Editing option, press [enter] to leave edit.");
     curses_move(y-3,0);
-    printw(firstLine);
+    printw(fmt_s, "Editing option, press [enter] to leave edit.");
     return true;
     }
   else

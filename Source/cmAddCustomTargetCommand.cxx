@@ -11,6 +11,9 @@
 ============================================================================*/
 #include "cmAddCustomTargetCommand.h"
 
+#include "cmGeneratorExpression.h"
+#include "cmGlobalGenerator.h"
+
 // cmAddCustomTargetCommand
 bool cmAddCustomTargetCommand
 ::InitialPass(std::vector<std::string> const& args,
@@ -22,20 +25,17 @@ bool cmAddCustomTargetCommand
     return false;
     }
 
+  std::string targetName = args[0];
+
   // Check the target name.
-  if(args[0].find_first_of("/\\") != args[0].npos)
+  if(targetName.find_first_of("/\\") != targetName.npos)
     {
-    if(!this->Makefile->NeedBackwardsCompatibility(2,2))
-      {
-      cmOStringStream e;
-      e << "called with invalid target name \"" << args[0]
-        << "\".  Target names may not contain a slash.  "
-        << "Use ADD_CUSTOM_COMMAND to generate files.  "
-        << "Set CMAKE_BACKWARDS_COMPATIBILITY to 2.2 "
-        << "or lower to skip this check.";
-      this->SetError(e.str().c_str());
-      return false;
-      }
+    std::ostringstream e;
+    e << "called with invalid target name \"" << targetName
+      << "\".  Target names may not contain a slash.  "
+      << "Use ADD_CUSTOM_COMMAND to generate files.";
+    this->SetError(e.str());
+    return false;
     }
 
   // Accumulate one command line at a time.
@@ -45,9 +45,10 @@ bool cmAddCustomTargetCommand
   cmCustomCommandLines commandLines;
 
   // Accumulate dependencies.
-  std::vector<std::string> depends;
+  std::vector<std::string> depends, byproducts;
   std::string working_directory;
   bool verbatim = false;
+  bool uses_terminal = false;
   std::string comment_buffer;
   const char* comment = 0;
   std::vector<std::string> sources;
@@ -56,10 +57,11 @@ bool cmAddCustomTargetCommand
   enum tdoing {
     doing_command,
     doing_depends,
+    doing_byproducts,
     doing_working_directory,
     doing_comment,
     doing_source,
-    doing_verbatim
+    doing_nothing
   };
   tdoing doing = doing_command;
 
@@ -84,14 +86,23 @@ bool cmAddCustomTargetCommand
       {
       doing = doing_depends;
       }
+    else if(copy == "BYPRODUCTS")
+      {
+      doing = doing_byproducts;
+      }
     else if(copy == "WORKING_DIRECTORY")
       {
       doing = doing_working_directory;
       }
     else if(copy == "VERBATIM")
       {
-      doing = doing_verbatim;
+      doing = doing_nothing;
       verbatim = true;
+      }
+    else if(copy == "USES_TERMINAL")
+      {
+      doing = doing_nothing;
+      uses_terminal = true;
       }
     else if (copy == "COMMENT")
       {
@@ -122,6 +133,19 @@ bool cmAddCustomTargetCommand
         case doing_command:
           currentLine.push_back(copy);
           break;
+        case doing_byproducts:
+          {
+          std::string filename;
+          if (!cmSystemTools::FileIsFullPath(copy.c_str()))
+            {
+            filename = this->Makefile->GetCurrentBinaryDirectory();
+            filename += "/";
+            }
+          filename += copy;
+          cmSystemTools::ConvertToUnixSlashes(filename);
+          byproducts.push_back(filename);
+          }
+          break;
         case doing_depends:
           {
           std::string dep = copy;
@@ -143,14 +167,56 @@ bool cmAddCustomTargetCommand
       }
     }
 
-  std::string::size_type pos = args[0].find_first_of("#<>");
-  if(pos != args[0].npos)
+  std::string::size_type pos = targetName.find_first_of("#<>");
+  if(pos != targetName.npos)
     {
-    cmOStringStream msg;
-    msg << "called with target name containing a \"" << args[0][pos]
+    std::ostringstream msg;
+    msg << "called with target name containing a \"" << targetName[pos]
         << "\".  This character is not allowed.";
-    this->SetError(msg.str().c_str());
+    this->SetError(msg.str());
     return false;
+    }
+
+  // Some requirements on custom target names already exist
+  // and have been checked at this point.
+  // The following restrictions overlap but depend on policy CMP0037.
+  bool nameOk = cmGeneratorExpression::IsValidTargetName(targetName) &&
+    !cmGlobalGenerator::IsReservedTarget(targetName);
+  if (nameOk)
+    {
+    nameOk = targetName.find(":") == std::string::npos;
+    }
+  if (!nameOk)
+    {
+    cmake::MessageType messageType = cmake::AUTHOR_WARNING;
+    std::ostringstream e;
+    bool issueMessage = false;
+    switch(this->Makefile->GetPolicyStatus(cmPolicies::CMP0037))
+      {
+      case cmPolicies::WARN:
+        e << cmPolicies::GetPolicyWarning(cmPolicies::CMP0037) << "\n";
+        issueMessage = true;
+      case cmPolicies::OLD:
+        break;
+      case cmPolicies::NEW:
+      case cmPolicies::REQUIRED_IF_USED:
+      case cmPolicies::REQUIRED_ALWAYS:
+        issueMessage = true;
+        messageType = cmake::FATAL_ERROR;
+      }
+    if (issueMessage)
+      {
+      e << "The target name \"" << targetName <<
+          "\" is reserved or not valid for certain "
+          "CMake features, such as generator expressions, and may result "
+          "in undefined behavior.";
+      this->Makefile->IssueMessage(messageType, e.str());
+
+      if (messageType == cmake::FATAL_ERROR)
+        {
+        return false;
+        }
+      }
     }
 
   // Store the last command line finished.
@@ -163,9 +229,9 @@ bool cmAddCustomTargetCommand
   // Enforce name uniqueness.
   {
   std::string msg;
-  if(!this->Makefile->EnforceUniqueName(args[0], msg, true))
+  if(!this->Makefile->EnforceUniqueName(targetName, msg, true))
     {
-    this->SetError(msg.c_str());
+    this->SetError(msg);
     return false;
     }
   }
@@ -173,17 +239,32 @@ bool cmAddCustomTargetCommand
   // Convert working directory to a full path.
   if(!working_directory.empty())
     {
-    const char* build_dir = this->Makefile->GetCurrentOutputDirectory();
+    const char* build_dir = this->Makefile->GetCurrentBinaryDirectory();
     working_directory =
-      cmSystemTools::CollapseFullPath(working_directory.c_str(), build_dir);
+      cmSystemTools::CollapseFullPath(working_directory, build_dir);
+    }
+
+  if (commandLines.empty() && !byproducts.empty())
+    {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "BYPRODUCTS may not be specified without any COMMAND");
+    return true;
+    }
+  if (commandLines.empty() && uses_terminal)
+    {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "USES_TERMINAL may not be specified without any COMMAND");
+    return true;
     }
 
   // Add the utility target to the makefile.
   bool escapeOldStyle = !verbatim;
   cmTarget* target =
-    this->Makefile->AddUtilityCommand(args[0].c_str(), excludeFromAll,
-                                      working_directory.c_str(), depends,
-                                      commandLines, escapeOldStyle, comment);
+    this->Makefile->AddUtilityCommand(targetName, excludeFromAll,
+                                      working_directory.c_str(),
+                                      byproducts, depends,
+                                      commandLines, escapeOldStyle, comment,
+                                      uses_terminal);
 
   // Add additional user-specified source files to the target.
   target->AddSources(sources);

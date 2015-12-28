@@ -63,24 +63,24 @@ bool cmCMakeMinimumRequired
 
 
   // Get the current version number.
-  int current_major = cmVersion::GetMajorVersion();
-  int current_minor = cmVersion::GetMinorVersion();
-  int current_patch = cmVersion::GetPatchVersion();
-  int current_tweak = cmVersion::GetTweakVersion();
+  unsigned int current_major = cmVersion::GetMajorVersion();
+  unsigned int current_minor = cmVersion::GetMinorVersion();
+  unsigned int current_patch = cmVersion::GetPatchVersion();
+  unsigned int current_tweak = cmVersion::GetTweakVersion();
 
   // Parse at least two components of the version number.
   // Use zero for those not specified.
-  int required_major = 0;
-  int required_minor = 0;
-  int required_patch = 0;
-  int required_tweak = 0;
+  unsigned int required_major = 0;
+  unsigned int required_minor = 0;
+  unsigned int required_patch = 0;
+  unsigned int required_tweak = 0;
   if(sscanf(version_string.c_str(), "%u.%u.%u.%u",
             &required_major, &required_minor,
             &required_patch, &required_tweak) < 2)
     {
-    cmOStringStream e;
-    e << "could not parse VERSION \"" << version_string.c_str() << "\".";
-    this->SetError(e.str().c_str());
+    std::ostringstream e;
+    e << "could not parse VERSION \"" << version_string << "\".";
+    this->SetError(e.str());
     return false;
     }
 
@@ -97,8 +97,8 @@ bool cmCMakeMinimumRequired
       current_tweak < required_tweak))
     {
     // The current version is too low.
-    cmOStringStream e;
-    e << "CMake " << version_string.c_str()
+    std::ostringstream e;
+    e << "CMake " << version_string
       << " or higher is required.  You are running version "
       << cmVersion::GetCMakeVersion();
     this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
@@ -114,13 +114,16 @@ bool cmCMakeMinimumRequired
 
   if (required_major < 2 || (required_major == 2 && required_minor < 4))
   {
+    this->Makefile->IssueMessage(
+      cmake::AUTHOR_WARNING,
+      "Compatibility with CMake < 2.4 is not supported by CMake >= 3.0.");
     this->Makefile->SetPolicyVersion("2.4");
   }
   else
   {
     this->Makefile->SetPolicyVersion(version_string.c_str());
   }
-  
+
   return true;
 }
 
@@ -129,10 +132,10 @@ bool cmCMakeMinimumRequired::EnforceUnknownArguments()
 {
   if(!this->UnknownArguments.empty())
     {
-    cmOStringStream e;
+    std::ostringstream e;
     e << "called with unknown argument \""
       << this->UnknownArguments[0] << "\".";
-    this->SetError(e.str().c_str());
+    this->SetError(e.str());
     return false;
     }
   return true;

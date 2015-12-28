@@ -12,8 +12,11 @@
 #include "cmPropertyMap.h"
 #include "cmSystemTools.h"
 #include "cmake.h"
+#include "cmState.h"
 
-cmProperty *cmPropertyMap::GetOrCreateProperty(const char *name)
+#include <assert.h>
+
+cmProperty *cmPropertyMap::GetOrCreateProperty(const std::string& name)
 {
   cmPropertyMap::iterator it = this->find(name);
   cmProperty *prop;
@@ -28,94 +31,39 @@ cmProperty *cmPropertyMap::GetOrCreateProperty(const char *name)
   return prop;
 }
 
-void cmPropertyMap::SetProperty(const char *name, const char *value,
-                                cmProperty::ScopeType scope)
+void cmPropertyMap::SetProperty(const std::string& name, const char *value)
 {
-  if (!name)
-    {
-    return;
-    }
   if(!value)
     {
     this->erase(name);
     return;
     }
-#ifdef CMAKE_STRICT
-  if (!this->CMakeInstance)
-    {
-    cmSystemTools::Error("CMakeInstance not set on a property map!"); 
-    abort();
-    }
-  else
-    {
-    this->CMakeInstance->RecordPropertyAccess(name,scope);
-    }
-#else
-  (void)scope;
-#endif
 
   cmProperty *prop = this->GetOrCreateProperty(name);
-  prop->Set(name,value);
+  prop->Set(value);
 }
 
-void cmPropertyMap::AppendProperty(const char* name, const char* value,
-                                   cmProperty::ScopeType scope, bool asString)
+void cmPropertyMap::AppendProperty(const std::string& name, const char* value,
+                                   bool asString)
 {
   // Skip if nothing to append.
-  if(!name || !value || !*value)
+  if(!value || !*value)
     {
     return;
     }
-#ifdef CMAKE_STRICT
-  if (!this->CMakeInstance)
-    {
-    cmSystemTools::Error("CMakeInstance not set on a property map!");
-    abort();
-    }
-  else
-    {
-    this->CMakeInstance->RecordPropertyAccess(name,scope);
-    }
-#else
-  (void)scope;
-#endif
 
   cmProperty *prop = this->GetOrCreateProperty(name);
-  prop->Append(name,value,asString);
+  prop->Append(value,asString);
 }
 
 const char *cmPropertyMap
-::GetPropertyValue(const char *name, 
-                   cmProperty::ScopeType scope, 
-                   bool &chain) const
-{ 
-  chain = false;
-  if (!name)
-    {
-    return 0;
-    }
-
-  // has the property been defined?
-#ifdef CMAKE_STRICT
-  if (!this->CMakeInstance)
-    {
-    cmSystemTools::Error("CMakeInstance not set on a property map!"); 
-    abort();
-    }
-  else
-    {
-    this->CMakeInstance->RecordPropertyAccess(name,scope);
-    }
-#endif
+::GetPropertyValue(const std::string& name) const
+{
+  assert(!name.empty());
 
   cmPropertyMap::const_iterator it = this->find(name);
   if (it == this->end())
     {
-    // should we chain up?
-    if (this->CMakeInstance)
-      {
-      chain = this->CMakeInstance->IsPropertyChained(name,scope);
-      }
     return 0;
     }
   return it->second.GetValue();

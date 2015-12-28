@@ -19,7 +19,7 @@ bool cmSourceGroupCommand
     {
     this->SetError("called with incorrect number of arguments");
     return false;
-    }  
+    }
 
   std::string delimiter = "\\";
   if(this->Makefile->GetDefinition("SOURCE_GROUP_DELIMITER"))
@@ -29,7 +29,7 @@ bool cmSourceGroupCommand
 
   std::vector<std::string> folders =
     cmSystemTools::tokenize(args[0], delimiter);
- 
+
   cmSourceGroup* sg = 0;
   sg = this->Makefile->GetSourceGroup(folders);
   if(!sg)
@@ -50,7 +50,7 @@ bool cmSourceGroupCommand
     sg->SetGroupRegex(args[1].c_str());
     return true;
     }
-  
+
   // Process arguments.
   bool doingFiles = false;
   for(unsigned int i=1; i < args.size(); ++i)
@@ -78,25 +78,25 @@ bool cmSourceGroupCommand
     else if(doingFiles)
       {
       // Convert name to full path and add to the group's list.
-      std::string src = args[i].c_str();
+      std::string src = args[i];
       if(!cmSystemTools::FileIsFullPath(src.c_str()))
         {
-        src = this->Makefile->GetCurrentDirectory();
+        src = this->Makefile->GetCurrentSourceDirectory();
         src += "/";
         src += args[i];
         }
       src = cmSystemTools::CollapseFullPath(src.c_str());
-      sg->AddGroupFile(src.c_str());
+      sg->AddGroupFile(src);
       }
     else
       {
-      cmOStringStream err;
-      err << "Unknown argument \"" << args[i].c_str() << "\".  "
+      std::ostringstream err;
+      err << "Unknown argument \"" << args[i] << "\".  "
           << "Perhaps the FILES keyword is missing.\n";
-      this->SetError(err.str().c_str());
+      this->SetError(err.str());
       return false;
       }
     }
-  
+
   return true;
 }

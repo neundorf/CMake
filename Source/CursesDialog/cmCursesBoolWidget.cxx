@@ -12,11 +12,11 @@
 #include "cmCursesBoolWidget.h"
 #include "cmCursesMainForm.h"
 
-cmCursesBoolWidget::cmCursesBoolWidget(int width, int height, 
+cmCursesBoolWidget::cmCursesBoolWidget(int width, int height,
                                        int left, int top) :
   cmCursesWidget(width, height, left, top)
 {
-  this->Type = cmCacheManager::BOOL;
+  this->Type = cmState::BOOL;
   set_field_fore(this->Field,  A_NORMAL);
   set_field_back(this->Field,  A_STANDOUT);
   field_opts_off(this->Field,  O_STATIC);
@@ -38,15 +38,15 @@ bool cmCursesBoolWidget::HandleInput(int& key, cmCursesMainForm*, WINDOW* w)
       this->SetValueAsBool(true);
       }
 
-    touchwin(w); 
-    wrefresh(w); 
+    touchwin(w);
+    wrefresh(w);
     return true;
     }
   else
     {
     return false;
     }
-  
+
 }
 
 void cmCursesBoolWidget::SetValueAsBool(bool value)
@@ -56,7 +56,7 @@ void cmCursesBoolWidget::SetValueAsBool(bool value)
     this->SetValue("ON");
     }
   else
-    { 
+    {
     this->SetValue("OFF");
     }
 }
@@ -68,7 +68,7 @@ bool cmCursesBoolWidget::GetValueAsBool()
     return true;
     }
   else
-    { 
+    {
     return false;
     }
 }

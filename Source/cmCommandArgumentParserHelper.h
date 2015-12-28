@@ -66,8 +66,8 @@ public:
   void SetNoEscapeMode(bool b) { this->NoEscapeMode = b; }
   void SetReplaceAtSyntax(bool b) { this->ReplaceAtSyntax = b; }
   void SetRemoveEmpty(bool b) { this->RemoveEmpty = b; }
-  
-  const char* GetError() { return this->ErrorString.c_str(); } 
+
+  const char* GetError() { return this->ErrorString.c_str(); }
   char EmptyVariable[1];
   char DCURLYVariable[3];
   char RCURLYVariable[3];
@@ -77,17 +77,14 @@ public:
   char BSLASHVariable[3];
 
 private:
-  cmStdString::size_type InputBufferPos;
-  cmStdString InputBuffer;
+  std::string::size_type InputBufferPos;
+  std::string InputBuffer;
   std::vector<char> OutputBuffer;
-  int CurrentLine;
-  int UnionsAvailable;
-  int Verbose;
 
   void Print(const char* place, const char* str);
   void SafePrintMissing(const char* str, int line, int cnt);
 
-  char* AddString(const char* str);
+  char* AddString(const std::string& str);
 
   void CleanupParser();
   void SetError(std::string const& msg);
@@ -95,15 +92,17 @@ private:
   std::vector<char*> Variables;
   const cmMakefile* Makefile;
   std::string Result;
+  std::string ErrorString;
   const char* FileName;
+  long FileLine;
+  int CurrentLine;
+  int Verbose;
   bool WarnUninitialized;
   bool CheckSystemVars;
-  long FileLine;
   bool EscapeQuotes;
-  std::string ErrorString;
   bool NoEscapeMode;
   bool ReplaceAtSyntax;
-  bool RemoveEmpty; 
+  bool RemoveEmpty;
 };
 
 #endif

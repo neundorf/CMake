@@ -12,9 +12,11 @@
 #include "cmCommandArgumentParserHelper.h"
 
 #include "cmSystemTools.h"
-#include "cmCommandArgumentLexer.h"
-
 #include "cmMakefile.h"
+#include "cmState.h"
+#include "cmOutputConverter.h"
+
+#include "cmCommandArgumentLexer.h"
 
 int cmCommandArgument_yyparse( yyscan_t yyscanner );
 //
@@ -49,19 +51,19 @@ void cmCommandArgumentParserHelper::SetLineFile(long line, const char* file)
   this->FileName = file;
 }
 
-char* cmCommandArgumentParserHelper::AddString(const char* str)
+char* cmCommandArgumentParserHelper::AddString(const std::string& str)
 {
-  if ( !str || !*str )
+  if ( str.empty() )
     {
     return this->EmptyVariable;
     }
-  char* stVal = new char[strlen(str)+1];
-  strcpy(stVal, str);
+  char* stVal = new char[str.size()+1];
+  strcpy(stVal, str.c_str());
   this->Variables.push_back(stVal);
   return stVal;
 }
 
-char* cmCommandArgumentParserHelper::ExpandSpecialVariable(const char* key, 
+char* cmCommandArgumentParserHelper::ExpandSpecialVariable(const char* key,
                                                            const char* var)
 {
   if ( !key )
@@ -79,7 +81,7 @@ char* cmCommandArgumentParserHelper::ExpandSpecialVariable(const char* key,
       {
       if (this->EscapeQuotes)
         {
-        return this->AddString(cmSystemTools::EscapeQuotes(ptr).c_str());
+        return this->AddString(cmSystemTools::EscapeQuotes(ptr));
         }
       else
         {
@@ -90,11 +92,12 @@ char* cmCommandArgumentParserHelper::ExpandSpecialVariable(const char* key,
     }
   if ( strcmp(key, "CACHE") == 0 )
     {
-    if(const char* c = this->Makefile->GetCacheManager()->GetCacheValue(var))
+    if(const char* c = this->Makefile->GetState()
+                           ->GetInitializedCacheValue(var))
       {
       if(this->EscapeQuotes)
         {
-        return this->AddString(cmSystemTools::EscapeQuotes(c).c_str());
+        return this->AddString(cmSystemTools::EscapeQuotes(c));
         }
       else
         {
@@ -103,7 +106,7 @@ char* cmCommandArgumentParserHelper::ExpandSpecialVariable(const char* key,
       }
     return this->EmptyVariable;
     }
-  cmOStringStream e;
+  std::ostringstream e;
   e << "Syntax $" << key << "{} is not supported.  "
     << "Only ${}, $ENV{}, and $CACHE{} are allowed.";
   this->SetError(e.str());
@@ -118,9 +121,9 @@ char* cmCommandArgumentParserHelper::ExpandVariable(const char* var)
     }
   if(this->FileLine >= 0 && strcmp(var, "CMAKE_CURRENT_LIST_LINE") == 0)
     {
-    cmOStringStream ostr;
+    std::ostringstream ostr;
     ostr << this->FileLine;
-    return this->AddString(ostr.str().c_str());
+    return this->AddString(ostr.str());
     }
   const char* value = this->Makefile->GetDefinition(var);
   if(!value && !this->RemoveEmpty)
@@ -136,24 +139,25 @@ char* cmCommandArgumentParserHelper::ExpandVariable(const char* var)
           cmSystemTools::IsSubDirectory(this->FileName,
                                      this->Makefile->GetHomeOutputDirectory()))
         {
-        cmOStringStream msg;
-        cmListFileBacktrace bt;
+        std::ostringstream msg;
         cmListFileContext lfc;
-        lfc.FilePath = this->FileName;
+        cmOutputConverter converter(this->Makefile->GetStateSnapshot());
+        lfc.FilePath = converter.Convert(this->FileName,
+                                         cmOutputConverter::HOME);
+
         lfc.Line = this->FileLine;
-        bt.push_back(lfc);
         msg << "uninitialized variable \'" << var << "\'";
         this->Makefile->GetCMakeInstance()->IssueMessage(cmake::AUTHOR_WARNING,
-                                                        msg.str().c_str(), bt);
+                                                        msg.str(), lfc);
         }
       }
     return 0;
     }
   if (this->EscapeQuotes && value)
     {
-    return this->AddString(cmSystemTools::EscapeQuotes(value).c_str());
+    return this->AddString(cmSystemTools::EscapeQuotes(value));
     }
-  return this->AddString(value);
+  return this->AddString(value ? value : "");
 }
 
 char* cmCommandArgumentParserHelper::ExpandVariableForAt(const char* var)
@@ -163,10 +167,10 @@ char* cmCommandArgumentParserHelper::ExpandVariableForAt(const char* var)
     // try to expand the variable
     char* ret = this->ExpandVariable(var);
     // if the return was 0 and we want to replace empty strings
-    // then return an empty string 
+    // then return an empty string
     if(!ret && this->RemoveEmpty)
       {
-      return this->AddString(ret);
+      return this->AddString("");
       }
     // if the ret was not 0, then return it
     if(ret)
@@ -175,13 +179,13 @@ char* cmCommandArgumentParserHelper::ExpandVariableForAt(const char* var)
       }
     }
   // at this point we want to put it back because of one of these cases:
-  // - this->ReplaceAtSyntax is false  
+  // - this->ReplaceAtSyntax is false
   // - this->ReplaceAtSyntax is true, but this->RemoveEmpty is false,
   //   and the variable was not defined
   std::string ref = "@";
   ref += var;
   ref += "@";
-  return this->AddString(ref.c_str());
+  return this->AddString(ref);
 }
 
 char* cmCommandArgumentParserHelper::CombineUnions(char* in1, char* in2)
@@ -253,7 +257,7 @@ bool cmCommandArgumentParserHelper::HandleEscapeSymbol
     break;
   default:
     {
-    cmOStringStream e;
+    std::ostringstream e;
     e << "Invalid escape sequence \\" << symbol;
     this->SetError(e.str());
     }
@@ -274,7 +278,7 @@ int cmCommandArgumentParserHelper::ParseString(const char* str, int verb)
   this->InputBuffer = str;
   this->InputBufferPos = 0;
   this->CurrentLine = 0;
-  
+
   this->Result = "";
 
   yyscan_t yyscanner;
@@ -292,8 +296,8 @@ int cmCommandArgumentParserHelper::ParseString(const char* str, int verb)
 
   if ( Verbose )
     {
-    std::cerr << "Expanding [" << str << "] produced: [" 
-              << this->Result.c_str() << "]" << std::endl;
+    std::cerr << "Expanding [" << str << "] produced: ["
+              << this->Result << "]" << std::endl;
     }
   return 1;
 }
@@ -335,7 +339,7 @@ int cmCommandArgumentParserHelper::LexInput(char* buf, int maxlen)
 void cmCommandArgumentParserHelper::Error(const char* str)
 {
   unsigned long pos = static_cast<unsigned long>(this->InputBufferPos);
-  cmOStringStream ostr;
+  std::ostringstream ostr;
   ostr << str << " (" << pos << ")";
   this->SetError(ostr.str());
 }

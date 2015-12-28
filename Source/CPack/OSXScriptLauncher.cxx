@@ -11,8 +11,9 @@
 ============================================================================*/
 #include <cmsys/SystemTools.hxx>
 #include <cmsys/Process.h>
-#include <cmsys/ios/fstream>
-#include <cmsys/ios/iostream>
+#include <cmsys/FStream.hxx>
+
+#include <iostream>
 
 #include <CoreFoundation/CoreFoundation.h>
 
@@ -20,14 +21,14 @@
 #include <sys/syslimits.h>
 
 #define DebugError(x) \
-  ofs << x << cmsys_ios::endl; \
-  cmsys_ios::cout << x << cmsys_ios::endl
+  ofs << x << std::endl; \
+  std::cout << x << std::endl
 
 int main(int argc, char* argv[])
 {
   //if ( cmsys::SystemTools::FileExists(
-  cmsys_stl::string cwd = cmsys::SystemTools::GetCurrentWorkingDirectory();
-  cmsys_ios::ofstream ofs("/tmp/output.txt");
+  std::string cwd = cmsys::SystemTools::GetCurrentWorkingDirectory();
+  cmsys::ofstream ofs("/tmp/output.txt");
 
   CFStringRef fileName;
   CFBundleRef appBundle;
@@ -66,7 +67,7 @@ int main(int argc, char* argv[])
   //dispose of the CF variable
   CFRelease(scriptFileURL);
 
-  cmsys_stl::string fullScriptPath = reinterpret_cast<char*>(path);
+  std::string fullScriptPath = reinterpret_cast<char*>(path);
   delete [] path;
 
 
@@ -75,10 +76,10 @@ int main(int argc, char* argv[])
     return 1;
     }
 
-  cmsys_stl::string scriptDirectory = cmsys::SystemTools::GetFilenamePath(
+  std::string scriptDirectory = cmsys::SystemTools::GetFilenamePath(
     fullScriptPath);
-  ofs << fullScriptPath.c_str() << cmsys_ios::endl;
-  cmsys_stl::vector<const char*> args;
+  ofs << fullScriptPath.c_str() << std::endl;
+  std::vector<const char*> args;
   args.push_back(fullScriptPath.c_str());
   int cc;
   for ( cc = 1; cc < argc; ++ cc )
@@ -93,7 +94,7 @@ int main(int argc, char* argv[])
   cmsysProcess_SetOption(cp, cmsysProcess_Option_HideWindow, 1);
   cmsysProcess_SetTimeout(cp, 0);
   cmsysProcess_Execute(cp);
-  
+
   std::vector<char> tempOutput;
   char* data;
   int length;
@@ -109,11 +110,11 @@ int main(int argc, char* argv[])
         data[i] = ' ';
         }
       }
-    cmsys_ios::cout.write(data, length);
+    std::cout.write(data, length);
     }
-  
+
   cmsysProcess_WaitForExit(cp, 0);
-  
+
   bool result = true;
   if(cmsysProcess_GetState(cp) == cmsysProcess_State_Exited)
     {
@@ -140,7 +141,7 @@ int main(int argc, char* argv[])
     std::cerr << error_str << std::endl;
     result = false;
     }
-  
+
   cmsysProcess_Delete(cp);
 
   return 0;

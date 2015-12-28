@@ -34,38 +34,31 @@ bool cmOptionCommand
   if(argError)
     {
     std::string m = "called with incorrect number of arguments: ";
-    for(size_t i =0; i < args.size(); ++i)
-      {
-      m += args[i];
-      m += " ";
-      }
-    this->SetError(m.c_str());
+    m += cmJoin(args, " ");
+    this->SetError(m);
     return false;
     }
-  
+
   std::string initialValue = "Off";
   // Now check and see if the value has been stored in the cache
   // already, if so use that value and don't look for the program
-  cmCacheManager::CacheIterator it = 
-    this->Makefile->GetCacheManager()->GetCacheIterator(args[0].c_str());
-  if(!it.IsAtEnd())
+  cmState* state = this->Makefile->GetState();
+  const char* existingValue = state->GetCacheEntryValue(args[0]);
+  if(existingValue)
     {
-    if ( it.GetType() != cmCacheManager::UNINITIALIZED )
+    if (state->GetCacheEntryType(args[0]) != cmState::UNINITIALIZED)
       {
-      it.SetProperty("HELPSTRING", args[1].c_str());
+      state->SetCacheEntryProperty(args[0], "HELPSTRING", args[1]);
       return true;
       }
-    if ( it.GetValue() )
-      {
-      initialValue = it.GetValue();
-      }
+    initialValue = existingValue;
     }
   if(args.size() == 3)
     {
     initialValue = args[2];
     }
   bool init = cmSystemTools::IsOn(initialValue.c_str());
-  this->Makefile->AddCacheDefinition(args[0].c_str(), init? "ON":"OFF",
-                                     args[1].c_str(), cmCacheManager::BOOL);
+  this->Makefile->AddCacheDefinition(args[0], init? "ON":"OFF",
+                                     args[1].c_str(), cmState::BOOL);
   return true;
 }

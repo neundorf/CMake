@@ -9,8 +9,8 @@
   implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   See the License for more information.
 ============================================================================*/
-#ifndef __cmCursesBoolWidget_h
-#define __cmCursesBoolWidget_h
+#ifndef cmCursesBoolWidget_h
+#define cmCursesBoolWidget_h
 
 #include "cmCursesWidget.h"
 class cmCursesMainForm;
@@ -19,7 +19,7 @@ class cmCursesBoolWidget : public cmCursesWidget
 {
 public:
   cmCursesBoolWidget(int width, int height, int left, int top);
-  
+
   // Description:
   // Handle user input. Called by the container of this widget
   // when this widget has focus. Returns true if the input was
@@ -37,4 +37,4 @@ protected:
 
 };
 
-#endif // __cmCursesBoolWidget_h
+#endif // cmCursesBoolWidget_h

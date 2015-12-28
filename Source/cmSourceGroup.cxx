@@ -71,13 +71,13 @@ void cmSourceGroup::SetGroupRegex(const char* regex)
     this->GroupRegex.compile("^$");
     }
 }
-  
+
 //----------------------------------------------------------------------------
-void cmSourceGroup::AddGroupFile(const char* name)
+void cmSourceGroup::AddGroupFile(const std::string& name)
 {
   this->GroupFiles.insert(name);
 }
-  
+
 //----------------------------------------------------------------------------
 const char* cmSourceGroup::GetName() const
 {
@@ -89,7 +89,7 @@ const char* cmSourceGroup::GetFullName() const
 {
   return this->FullName.c_str();
 }
-  
+
 //----------------------------------------------------------------------------
 bool cmSourceGroup::MatchesRegex(const char* name)
 {
@@ -99,7 +99,7 @@ bool cmSourceGroup::MatchesRegex(const char* name)
 //----------------------------------------------------------------------------
 bool cmSourceGroup::MatchesFiles(const char* name)
 {
-  std::set<cmStdString>::const_iterator i = this->GroupFiles.find(name);
+  std::set<std::string>::const_iterator i = this->GroupFiles.find(name);
   if(i != this->GroupFiles.end())
     {
     return true;
@@ -120,35 +120,29 @@ const std::vector<const cmSourceFile*>& cmSourceGroup::GetSourceFiles() const
 }
 
 //----------------------------------------------------------------------------
-std::vector<const cmSourceFile*>& cmSourceGroup::GetSourceFiles()
-{
-  return this->SourceFiles;
-}
-
-//----------------------------------------------------------------------------
 void cmSourceGroup::AddChild(cmSourceGroup child)
 {
   this->Internal->GroupChildren.push_back(child);
 }
 
 //----------------------------------------------------------------------------
-cmSourceGroup *cmSourceGroup::lookupChild(const char* name)
+cmSourceGroup *cmSourceGroup::LookupChild(const char* name) const
 {
   // initializing iterators
-  std::vector<cmSourceGroup>::iterator iter =
+  std::vector<cmSourceGroup>::const_iterator iter =
     this->Internal->GroupChildren.begin();
-  std::vector<cmSourceGroup>::iterator end =
+  const std::vector<cmSourceGroup>::const_iterator end =
     this->Internal->GroupChildren.end();
 
   // st
   for(;iter!=end; ++iter)
     {
-    std::string sgName = iter->GetName(); 
+    std::string sgName = iter->GetName();
 
     // look if descenened is the one were looking for
     if(sgName == name)
       {
-      return &(*iter); // if it so return it 
+      return const_cast<cmSourceGroup*>(&(*iter)); // if it so return it
       }
     }
 
@@ -188,10 +182,6 @@ cmSourceGroup *cmSourceGroup::MatchChildrenRegex(const char *name)
   std::vector<cmSourceGroup>::iterator end =
     this->Internal->GroupChildren.end();
 
-  if(this->MatchesRegex(name))
-    {
-    return this;
-    }
   for(;iter!=end; ++iter)
     {
     cmSourceGroup *result = iter->MatchChildrenRegex(name);
@@ -200,6 +190,11 @@ cmSourceGroup *cmSourceGroup::MatchChildrenRegex(const char *name)
       return result;
       }
     }
+  if(this->MatchesRegex(name))
+    {
+    return this;
+    }
+
   return 0;
 }
 

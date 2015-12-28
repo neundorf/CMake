@@ -18,17 +18,18 @@
  * \brief Define a command to search for an executable program.
  *
  * cmFindProgramCommand is used to define a CMake variable
- * that specifies an executable program. The command searches 
+ * that specifies an executable program. The command searches
  * in the current path (e.g., PATH environment variable) for
  * an executable that matches one of the supplied names.
  */
 class cmFindProgramCommand : public cmFindBase
 {
 public:
+  cmFindProgramCommand();
   /**
    * This is a virtual constructor for the command.
    */
-  virtual cmCommand* Clone() 
+  virtual cmCommand* Clone()
     {
     return new cmFindProgramCommand;
     }
@@ -43,29 +44,21 @@ public:
   /**
    * This determines if the command is invoked when in script mode.
    */
-  virtual bool IsScriptable() { return true; }
+  virtual bool IsScriptable() const { return true; }
 
   /**
    * The name of the command as specified in CMakeList.txt.
    */
-  virtual const char* GetName() { return "find_program";}
+  virtual std::string GetName() const { return "find_program";}
 
-  /**
-   * Succinct documentation.
-   */
-  virtual const char* GetTerseDocumentation() 
-    {
-    return "Find an executable program.";
-    }
-  
   cmTypeMacro(cmFindProgramCommand, cmFindBase);
 
-protected:
-  std::string FindProgram(std::vector<std::string> names);
-  virtual void GenerateDocumentation();
-
 private:
-  std::string FindAppBundle(std::vector<std::string> names);
+  std::string FindProgram();
+  std::string FindNormalProgram();
+  std::string FindNormalProgramDirsPerName();
+  std::string FindNormalProgramNamesPerDir();
+  std::string FindAppBundle();
   std::string GetBundleExecutable(std::string bundlePath);
 
 };

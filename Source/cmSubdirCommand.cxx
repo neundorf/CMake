@@ -22,7 +22,6 @@ bool cmSubdirCommand
     }
   bool res = true;
   bool excludeFromAll = false;
-  bool preorder = false;
 
   for(std::vector<std::string>::const_iterator i = args.begin();
       i != args.end(); ++i)
@@ -34,38 +33,38 @@ bool cmSubdirCommand
       }
     if(*i == "PREORDER")
       {
-      preorder = true;
+      // Ignored
       continue;
       }
 
     // if they specified a relative path then compute the full
-    std::string srcPath = 
-      std::string(this->Makefile->GetCurrentDirectory()) + 
+    std::string srcPath =
+      std::string(this->Makefile->GetCurrentSourceDirectory()) +
         "/" + i->c_str();
-    if (cmSystemTools::FileIsDirectory(srcPath.c_str()))
+    if (cmSystemTools::FileIsDirectory(srcPath))
       {
-      std::string binPath = 
-        std::string(this->Makefile->GetCurrentOutputDirectory()) + 
+      std::string binPath =
+        std::string(this->Makefile->GetCurrentBinaryDirectory()) +
         "/" + i->c_str();
-      this->Makefile->AddSubDirectory(srcPath.c_str(), binPath.c_str(),
-                                  excludeFromAll, preorder, false);
+      this->Makefile->AddSubDirectory(srcPath, binPath,
+                                  excludeFromAll, false);
       }
     // otherwise it is a full path
-    else if ( cmSystemTools::FileIsDirectory(i->c_str()) )
+    else if ( cmSystemTools::FileIsDirectory(*i) )
       {
       // we must compute the binPath from the srcPath, we just take the last
       // element from the source path and use that
-      std::string binPath = 
-        std::string(this->Makefile->GetCurrentOutputDirectory()) + 
-        "/" + cmSystemTools::GetFilenameName(i->c_str());
-      this->Makefile->AddSubDirectory(i->c_str(), binPath.c_str(),
-                                  excludeFromAll, preorder, false);
+      std::string binPath =
+        std::string(this->Makefile->GetCurrentBinaryDirectory()) +
+        "/" + cmSystemTools::GetFilenameName(*i);
+      this->Makefile->AddSubDirectory(*i, binPath,
+                                  excludeFromAll, false);
       }
     else
       {
       std::string error = "Incorrect SUBDIRS command. Directory: ";
-      error += *i + " does not exists.";
-      this->SetError(error.c_str());   
+      error += *i + " does not exist.";
+      this->SetError(error);
       res = false;
       }
     }

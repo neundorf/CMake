@@ -5,13 +5,11 @@ set(CMAKE_Fortran_FORMAT_FIXED_FLAG "-ffixed-form")
 set(CMAKE_Fortran_FORMAT_FREE_FLAG "-ffree-form")
 
 # No -DNDEBUG for Fortran.
-SET(CMAKE_Fortran_FLAGS_MINSIZEREL_INIT "-Os")
-SET(CMAKE_Fortran_FLAGS_RELEASE_INIT "-O3")
+set(CMAKE_Fortran_FLAGS_MINSIZEREL_INIT "-Os")
+set(CMAKE_Fortran_FLAGS_RELEASE_INIT "-O3")
 
-# We require updates to CMake C++ code to support preprocessing rules
-# for Fortran.
-SET(CMAKE_Fortran_CREATE_PREPROCESSED_SOURCE)
-SET(CMAKE_Fortran_CREATE_ASSEMBLY_SOURCE)
+# No -isystem for Fortran because it will not find .mod files.
+unset(CMAKE_INCLUDE_SYSTEM_FLAG_Fortran)
 
 # Fortran-specific feature flags.
-SET(CMAKE_Fortran_MODDIR_FLAG -J)
+set(CMAKE_Fortran_MODDIR_FLAG -J)

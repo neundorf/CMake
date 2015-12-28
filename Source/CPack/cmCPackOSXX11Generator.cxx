@@ -13,7 +13,6 @@
 
 #include "cmake.h"
 #include "cmGlobalGenerator.h"
-#include "cmLocalGenerator.h"
 #include "cmSystemTools.h"
 #include "cmMakefile.h"
 #include "cmGeneratedFileStream.h"
@@ -45,8 +44,8 @@ int cmCPackOSXX11Generator::PackageFiles()
     {
     cmCPackLogger(cmCPackLog::LOG_DEBUG, "The cpackPackageExecutables: "
       << cpackPackageExecutables << "." << std::endl);
-    cmOStringStream str;
-    cmOStringStream deleteStr;
+    std::ostringstream str;
+    std::ostringstream deleteStr;
     std::vector<std::string> cpackPackageExecutablesVector;
     cmSystemTools::ExpandListArgument(cpackPackageExecutables,
       cpackPackageExecutablesVector);
@@ -64,7 +63,7 @@ int cmCPackOSXX11Generator::PackageFiles()
       {
       std::string cpackExecutableName = *it;
       ++ it;
-      this->SetOptionIfNotSet("CPACK_EXECUTABLE_NAME", 
+      this->SetOptionIfNotSet("CPACK_EXECUTABLE_NAME",
         cpackExecutableName.c_str());
       }
     }
@@ -113,7 +112,7 @@ int cmCPackOSXX11Generator::PackageFiles()
   cmSystemTools::CreateSymlink("/Applications", applicationsLinkName.c_str());
 
   if (
-    !this->CopyResourcePlistFile("VolumeIcon.icns", 
+    !this->CopyResourcePlistFile("VolumeIcon.icns",
                                  diskImageDirectory.c_str(),
                                  ".VolumeIcon.icns", true ) ||
     !this->CopyResourcePlistFile("DS_Store", diskImageDirectory.c_str(),
@@ -125,9 +124,9 @@ int cmCPackOSXX11Generator::PackageFiles()
       "Info.plist" ) ||
     !this->CopyResourcePlistFile("OSXX11.main.scpt", scrDir,
       "main.scpt", true ) ||
-    !this->CopyResourcePlistFile("OSXScriptLauncher.rsrc", dir, 
+    !this->CopyResourcePlistFile("OSXScriptLauncher.rsrc", dir,
       rsrcFile, true) ||
-    !this->CopyResourcePlistFile("OSXScriptLauncher", appdir, 
+    !this->CopyResourcePlistFile("OSXScriptLauncher", appdir,
       this->GetOption("CPACK_PACKAGE_FILE_NAME"), true)
   )
     {
@@ -165,28 +164,30 @@ int cmCPackOSXX11Generator::PackageFiles()
   std::string output;
   std::string tmpFile = this->GetOption("CPACK_TOPLEVEL_DIRECTORY");
   tmpFile += "/hdiutilOutput.log";
-  cmOStringStream dmgCmd;
+  std::ostringstream dmgCmd;
   dmgCmd << "\"" << this->GetOption("CPACK_INSTALLER_PROGRAM_DISK_IMAGE")
-         << "\" create -ov -format UDZO -srcfolder \"" 
-         << diskImageDirectory.c_str() 
+         << "\" create -ov -format UDZO -srcfolder \""
+         << diskImageDirectory.c_str()
          << "\" \"" << packageFileNames[0] << "\"";
-  int retVal = 1;
   cmCPackLogger(cmCPackLog::LOG_VERBOSE,
-                "Compress disk image using command: " 
+                "Compress disk image using command: "
                 << dmgCmd.str().c_str() << std::endl);
   // since we get random dashboard failures with this one
   // try running it more than once
-  int numTries = 4;
+  int retVal = 1;
+  int numTries = 10;
   bool res = false;
   while(numTries > 0)
     {
-    res = cmSystemTools::RunSingleCommand(dmgCmd.str().c_str(), &output,
-                                          &retVal, 0, 
-                                          this->GeneratorVerbose, 0);
-    if(res && retVal)
+    res = cmSystemTools::RunSingleCommand(
+      dmgCmd.str().c_str(), &output, &output,
+      &retVal, 0, this->GeneratorVerbose, 0);
+    if ( res && !retVal )
       {
       numTries = -1;
+      break;
       }
+    cmSystemTools::Delay(500);
     numTries--;
     }
   if ( !res || retVal )
@@ -217,7 +218,7 @@ int cmCPackOSXX11Generator::InitializeInternal()
       << std::endl);
     return 0;
     }
-  this->SetOptionIfNotSet("CPACK_INSTALLER_PROGRAM_DISK_IMAGE", 
+  this->SetOptionIfNotSet("CPACK_INSTALLER_PROGRAM_DISK_IMAGE",
                           pkgPath.c_str());
 
   return this->Superclass::InitializeInternal();
@@ -225,7 +226,7 @@ int cmCPackOSXX11Generator::InitializeInternal()
 
 //----------------------------------------------------------------------
 /*
-bool cmCPackOSXX11Generator::CopyCreateResourceFile(const char* name)
+bool cmCPackOSXX11Generator::CopyCreateResourceFile(const std::string& name)
 {
   std::string uname = cmSystemTools::UpperCase(name);
   std::string cpackVar = "CPACK_RESOURCE_FILE_" + uname;
@@ -233,7 +234,7 @@ bool cmCPackOSXX11Generator::CopyCreateResourceFile(const char* name)
   if ( !inFileName )
     {
     cmCPackLogger(cmCPackLog::LOG_ERROR, "CPack option: " << cpackVar.c_str()
-                  << " not specified. It should point to " 
+                  << " not specified. It should point to "
                   << (name ? name : "(NULL)")
                   << ".rtf, " << name
                   << ".html, or " << name << ".txt file" << std::endl);
@@ -241,7 +242,7 @@ bool cmCPackOSXX11Generator::CopyCreateResourceFile(const char* name)
     }
   if ( !cmSystemTools::FileExists(inFileName) )
     {
-    cmCPackLogger(cmCPackLog::LOG_ERROR, "Cannot find " 
+    cmCPackLogger(cmCPackLog::LOG_ERROR, "Cannot find "
                   << (name ? name : "(NULL)")
                   << " resource file: " << inFileName << std::endl);
     return false;
@@ -260,7 +261,7 @@ bool cmCPackOSXX11Generator::CopyCreateResourceFile(const char* name)
   destFileName += name + ext;
 
 
-  cmCPackLogger(cmCPackLog::LOG_VERBOSE, "Configure file: " 
+  cmCPackLogger(cmCPackLog::LOG_VERBOSE, "Configure file: "
                 << (inFileName ? inFileName : "(NULL)")
                 << " to " << destFileName.c_str() << std::endl);
   this->ConfigureFile(inFileName, destFileName.c_str());
@@ -269,8 +270,8 @@ bool cmCPackOSXX11Generator::CopyCreateResourceFile(const char* name)
 */
 
 //----------------------------------------------------------------------
-bool cmCPackOSXX11Generator::CopyResourcePlistFile(const char* name,
-  const char* dir, const char* outputFileName /* = 0 */,
+bool cmCPackOSXX11Generator::CopyResourcePlistFile(const std::string& name,
+  const std::string& dir, const char* outputFileName /* = 0 */,
   bool copyOnly /* = false */)
 {
   std::string inFName = "CPack.";
@@ -286,7 +287,7 @@ bool cmCPackOSXX11Generator::CopyResourcePlistFile(const char* name,
 
   if ( !outputFileName )
     {
-    outputFileName = name;
+    outputFileName = name.c_str();
     }
 
   std::string destFileName = dir;

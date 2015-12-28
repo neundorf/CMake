@@ -14,6 +14,18 @@
 
 #include "cmStandardIncludes.h"
 
+#include "cmLinkedTree.h"
+
+#if defined(CMAKE_BUILD_WITH_CMAKE)
+#ifdef CMake_HAVE_CXX11_UNORDERED_MAP
+#include <unordered_map>
+#else
+#include "cmsys/hash_map.hxx"
+#endif
+#endif
+
+#include <list>
+
 /** \class cmDefinitions
  * \brief Store a scope of variable definitions for CMake language.
  *
@@ -23,64 +35,60 @@
  */
 class cmDefinitions
 {
+  typedef cmLinkedTree<cmDefinitions>::iterator StackIter;
 public:
-  /** Construct with the given parent scope.  */
-  cmDefinitions(cmDefinitions* parent = 0);
+  static const char* Get(const std::string& key,
+                         StackIter begin, StackIter end);
 
-  /** Reset object as if newly constructed.  */
-  void Reset(cmDefinitions* parent = 0);
+  static void Raise(const std::string& key,
+                    StackIter begin, StackIter end);
 
-  /** Returns the parent scope, if any.  */
-  cmDefinitions* GetParent() const { return this->Up; }
-
-  /** Get the value associated with a key; null if none.
-      Store the result locally if it came from a parent.  */
-  const char* Get(const char* key);
+  static bool HasKey(const std::string& key,
+                     StackIter begin, StackIter end);
 
   /** Set (or unset if null) a value associated with a key.  */
-  const char* Set(const char* key, const char* value);
+  void Set(const std::string& key, const char* value);
 
-  /** Get the set of all local keys.  */
-  std::set<cmStdString> LocalKeys() const;
+  std::vector<std::string> UnusedKeys() const;
 
-  /** Compute the closure of all defined keys with values.
-      This flattens the scope.  The result has no parent.  */
-  cmDefinitions Closure() const;
+  static std::vector<std::string> ClosureKeys(StackIter begin,
+                                              StackIter end);
 
-  /** Compute the set of all defined keys.  */
-  std::set<cmStdString> ClosureKeys() const;
+  static cmDefinitions MakeClosure(StackIter begin, StackIter end);
 
 private:
   // String with existence boolean.
-  struct Def: public cmStdString
+  struct Def: public std::string
   {
-    Def(): cmStdString(), Exists(false) {}
-    Def(const char* v): cmStdString(v?v:""), Exists(v?true:false) {}
-    Def(Def const& d): cmStdString(d), Exists(d.Exists) {}
+  private:
+    typedef std::string std_string;
+  public:
+    Def(): std_string(), Exists(false), Used(false) {}
+    Def(const char* v)
+      : std_string(v ? v : ""),
+        Exists(v ? true : false),
+        Used(false)
+    {}
+    Def(const std_string& v): std_string(v), Exists(true), Used(false) {}
+    Def(Def const& d): std_string(d), Exists(d.Exists), Used(d.Used) {}
     bool Exists;
+    bool Used;
   };
   static Def NoDef;
 
-  // Parent scope, if any.
-  cmDefinitions* Up;
-
-  // Local definitions, set or unset.
-  typedef std::map<cmStdString, Def> MapType;
+#if defined(CMAKE_BUILD_WITH_CMAKE)
+#ifdef CMake_HAVE_CXX11_UNORDERED_MAP
+  typedef std::unordered_map<std::string, Def> MapType;
+#else
+  typedef cmsys::hash_map<std::string, Def> MapType;
+#endif
+#else
+  typedef std::map<std::string, Def> MapType;
+#endif
   MapType Map;
 
-  // Internal query and update methods.
-  Def const& GetInternal(const char* key);
-  Def const& SetInternal(const char* key, Def const& def);
-
-  // Implementation of Closure() method.
-  struct ClosureTag {};
-  cmDefinitions(ClosureTag const&, cmDefinitions const* root);
-  void ClosureImpl(std::set<cmStdString>& undefined,
-                   cmDefinitions const* defs);
-
-  // Implementation of ClosureKeys() method.
-  void ClosureKeys(std::set<cmStdString>& defined,
-                   std::set<cmStdString>& undefined) const;
+  static Def const& GetInternal(const std::string& key,
+    StackIter begin, StackIter end, bool raise);
 };
 
 #endif

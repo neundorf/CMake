@@ -13,16 +13,19 @@
 #define cmCommands_h
 #include "cmStandardIncludes.h"
 
+#include <vector>
+
 class cmCommand;
 /**
  * Global function to return all compiled in commands.
- * To add a new command edit cmCommands.cxx or cmBootstrapCommands.cxx
+ * To add a new command edit cmCommands.cxx or cmBootstrapCommands[12].cxx
  * and add your command.
  * It is up to the caller to delete the commands created by this
  * call.
  */
-void GetBootstrapCommands(std::list<cmCommand*>& commands);
-void GetPredefinedCommands(std::list<cmCommand*>& commands);
+void GetBootstrapCommands1(std::vector<cmCommand*>& commands);
+void GetBootstrapCommands2(std::vector<cmCommand*>& commands);
+void GetPredefinedCommands(std::vector<cmCommand*>& commands);
 
 
 #endif

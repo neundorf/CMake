@@ -11,7 +11,7 @@
 ============================================================================*/
 #include "cmCursesLabelWidget.h"
 
-cmCursesLabelWidget::cmCursesLabelWidget(int width, int height, 
+cmCursesLabelWidget::cmCursesLabelWidget(int width, int height,
                                          int left, int top,
                                          const std::string& name) :
   cmCursesWidget(width, height, left, top)
@@ -19,7 +19,7 @@ cmCursesLabelWidget::cmCursesLabelWidget(int width, int height,
   field_opts_off(this->Field,  O_EDIT);
   field_opts_off(this->Field,  O_ACTIVE);
   field_opts_off(this->Field,  O_STATIC);
-  this->SetValue(name.c_str());
+  this->SetValue(name);
 }
 
 cmCursesLabelWidget::~cmCursesLabelWidget()

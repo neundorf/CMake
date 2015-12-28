@@ -17,9 +17,9 @@
 #include "cmSourceFile.h"
 
 /** \class cmQTWrapUICommand
- * \brief Create .h and .cxx files rules for QT user interfaces files
+ * \brief Create .h and .cxx files rules for Qt user interfaces files
  *
- * cmQTWrapUICommand is used to create wrappers for QT classes into normal C++
+ * cmQTWrapUICommand is used to create wrappers for Qt classes into normal C++
  */
 class cmQTWrapUICommand : public cmCommand
 {
@@ -28,7 +28,7 @@ public:
   /**
    * This is a virtual constructor for the command.
    */
-  virtual cmCommand* Clone() 
+  virtual cmCommand* Clone()
     {
     return new cmQTWrapUICommand;
     }
@@ -43,31 +43,7 @@ public:
   /**
    * The name of the command as specified in CMakeList.txt.
    */
-  virtual const char* GetName() { return "qt_wrap_ui";}
-
-  /**
-   * Succinct documentation.
-   */
-  virtual const char* GetTerseDocumentation() 
-    {
-    return "Create Qt user interfaces Wrappers.";
-    }
-  
-  /**
-   * More documentation.
-   */
-  virtual const char* GetFullDocumentation()
-    {
-    return
-      "  qt_wrap_ui(resultingLibraryName HeadersDestName\n"
-      "             SourcesDestName SourceLists ...)\n"
-      "Produce .h and .cxx files for all the .ui files listed "
-      "in the SourceLists.  "
-      "The .h files will be added to the library using the HeadersDestName"
-      "source list.  "
-      "The .cxx files will be added to the library using the SourcesDestName"
-      "source list.";
-    }
+  virtual std::string GetName() const { return "qt_wrap_ui";}
 };
 
 

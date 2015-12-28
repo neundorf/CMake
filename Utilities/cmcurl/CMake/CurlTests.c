@@ -1,6 +1,27 @@
+/***************************************************************************
+ *                                  _   _ ____  _
+ *  Project                     ___| | | |  _ \| |
+ *                             / __| | | | |_) | |
+ *                            | (__| |_| |  _ <| |___
+ *                             \___|\___/|_| \_\_____|
+ *
+ * Copyright (C) 1998 - 2014, Daniel Stenberg, <daniel@haxx.se>, et al.
+ *
+ * This software is licensed as described in the file COPYING, which
+ * you should have received as part of this distribution. The terms
+ * are also available at http://curl.haxx.se/docs/copyright.html.
+ *
+ * You may opt to use, copy, modify, merge, publish, distribute and/or sell
+ * copies of the Software, and permit persons to whom the Software is
+ * furnished to do so, under the terms of the COPYING file.
+ *
+ * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
+ * KIND, either express or implied.
+ *
+ ***************************************************************************/
 #ifdef TIME_WITH_SYS_TIME
 /* Time with sys/time test */
- 
+
 #include <sys/types.h>
 #include <sys/time.h>
 #include <time.h>
@@ -16,295 +37,122 @@ return 0;
 
 #endif
 
-#ifdef HAVE_O_NONBLOCK
+#ifdef HAVE_FCNTL_O_NONBLOCK
 
+/* headers for FCNTL_O_NONBLOCK test */
 #include <sys/types.h>
 #include <unistd.h>
 #include <fcntl.h>
-
-int
-main ()
-{
-  /* try to compile O_NONBLOCK */
-
-#if defined(sun) || defined(__sun__) || defined(__SUNPRO_C) || defined(__SUNPRO_CC)
+/* */
+#if defined(sun) || defined(__sun__) || \
+    defined(__SUNPRO_C) || defined(__SUNPRO_CC)
 # if defined(__SVR4) || defined(__srv4__)
 #  define PLATFORM_SOLARIS
 # else
 #  define PLATFORM_SUNOS4
 # endif
 #endif
-#if (defined(_AIX) || defined(__xlC__)) && !defined(_AIX4)
+#if (defined(_AIX) || defined(__xlC__)) && !defined(_AIX41)
 # define PLATFORM_AIX_V3
 #endif
-
-#if defined(PLATFORM_SUNOS4) || defined(PLATFORM_AIX_V3) || (defined(__BEOS__) && !defined(__HAIKU__))
+/* */
+#if defined(PLATFORM_SUNOS4) || defined(PLATFORM_AIX_V3) || defined(__BEOS__)
 #error "O_NONBLOCK does not work on this platform"
 #endif
-  int socket;
-  int flags = fcntl(socket, F_SETFL, flags | O_NONBLOCK);
-  return 0;
-}
-#endif
 
-#ifdef HAVE_GETHOSTBYADDR_R_5
-#include <sys/types.h>
-#include <netdb.h>
 int
 main ()
 {
-
-char * address;
-int length;
-int type;
-struct hostent h;
-struct hostent_data hdata;
-int rc;
-#ifndef gethostbyaddr_r
-  (void)gethostbyaddr_r;
-#endif
-rc = gethostbyaddr_r(address, length, type, &h, &hdata);
-  ;
-  return 0;
+      /* O_NONBLOCK source test */
+      int flags = 0;
+      if(0 != fcntl(0, F_SETFL, flags | O_NONBLOCK))
+          return 1;
+      return 0;
 }
 #endif
-#ifdef HAVE_GETHOSTBYADDR_R_5_REENTRANT
-#define _REENTRANT
+
+/* tests for gethostbyaddr_r or gethostbyname_r */
+#if defined(HAVE_GETHOSTBYADDR_R_5_REENTRANT) || \
+    defined(HAVE_GETHOSTBYADDR_R_7_REENTRANT) || \
+    defined(HAVE_GETHOSTBYADDR_R_8_REENTRANT) || \
+    defined(HAVE_GETHOSTBYNAME_R_3_REENTRANT) || \
+    defined(HAVE_GETHOSTBYNAME_R_5_REENTRANT) || \
+    defined(HAVE_GETHOSTBYNAME_R_6_REENTRANT)
+#   define _REENTRANT
+    /* no idea whether _REENTRANT is always set, just invent a new flag */
+#   define TEST_GETHOSTBYFOO_REENTRANT
+#endif
+#if defined(HAVE_GETHOSTBYADDR_R_5) || \
+    defined(HAVE_GETHOSTBYADDR_R_7) || \
+    defined(HAVE_GETHOSTBYADDR_R_8) || \
+    defined(HAVE_GETHOSTBYNAME_R_3) || \
+    defined(HAVE_GETHOSTBYNAME_R_5) || \
+    defined(HAVE_GETHOSTBYNAME_R_6) || \
+    defined(TEST_GETHOSTBYFOO_REENTRANT)
 #include <sys/types.h>
 #include <netdb.h>
-int
-main ()
+int main(void)
 {
-
-char * address;
-int length;q
-int type;
-struct hostent h;
-struct hostent_data hdata;
-int rc;
-#ifndef gethostbyaddr_r
-  (void)gethostbyaddr_r;
+  char *address = "example.com";
+  int length = 0;
+  int type = 0;
+  struct hostent h;
+  int rc = 0;
+#if defined(HAVE_GETHOSTBYADDR_R_5) || \
+    defined(HAVE_GETHOSTBYADDR_R_5_REENTRANT) || \
+    \
+    defined(HAVE_GETHOSTBYNAME_R_3) || \
+    defined(HAVE_GETHOSTBYNAME_R_3_REENTRANT)
+  struct hostent_data hdata;
+#elif defined(HAVE_GETHOSTBYADDR_R_7) || \
+      defined(HAVE_GETHOSTBYADDR_R_7_REENTRANT) || \
+      defined(HAVE_GETHOSTBYADDR_R_8) || \
+      defined(HAVE_GETHOSTBYADDR_R_8_REENTRANT) || \
+      \
+      defined(HAVE_GETHOSTBYNAME_R_5) || \
+      defined(HAVE_GETHOSTBYNAME_R_5_REENTRANT) || \
+      defined(HAVE_GETHOSTBYNAME_R_6) || \
+      defined(HAVE_GETHOSTBYNAME_R_6_REENTRANT)
+  char buffer[8192];
+  int h_errnop;
+  struct hostent *hp;
 #endif
-rc = gethostbyaddr_r(address, length, type, &h, &hdata);
-  ;
-  return 0;
-}
-#endif
-#ifdef HAVE_GETHOSTBYADDR_R_7
-#include <sys/types.h>
-#include <netdb.h>
-int
-main ()
-{
-
-char * address;
-int length;
-int type;
-struct hostent h;
-char buffer[8192];
-int h_errnop;
-struct hostent * hp;
 
 #ifndef gethostbyaddr_r
   (void)gethostbyaddr_r;
 #endif
-hp = gethostbyaddr_r(address, length, type, &h,
-                     buffer, 8192, &h_errnop);
-  ;
+
+#if   defined(HAVE_GETHOSTBYADDR_R_5) || \
+      defined(HAVE_GETHOSTBYADDR_R_5_REENTRANT)
+  rc = gethostbyaddr_r(address, length, type, &h, &hdata);
+#elif defined(HAVE_GETHOSTBYADDR_R_7) || \
+      defined(HAVE_GETHOSTBYADDR_R_7_REENTRANT)
+  hp = gethostbyaddr_r(address, length, type, &h, buffer, 8192, &h_errnop);
+  (void)hp;
+#elif defined(HAVE_GETHOSTBYADDR_R_8) || \
+      defined(HAVE_GETHOSTBYADDR_R_8_REENTRANT)
+  rc = gethostbyaddr_r(address, length, type, &h, buffer, 8192, &hp, &h_errnop);
+#endif
+
+#if   defined(HAVE_GETHOSTBYNAME_R_3) || \
+      defined(HAVE_GETHOSTBYNAME_R_3_REENTRANT)
+  rc = gethostbyname_r(address, &h, &hdata);
+#elif defined(HAVE_GETHOSTBYNAME_R_5) || \
+      defined(HAVE_GETHOSTBYNAME_R_5_REENTRANT)
+  rc = gethostbyname_r(address, &h, buffer, 8192, &h_errnop);
+  (void)hp; /* not used for test */
+#elif defined(HAVE_GETHOSTBYNAME_R_6) || \
+      defined(HAVE_GETHOSTBYNAME_R_6_REENTRANT)
+  rc = gethostbyname_r(address, &h, buffer, 8192, &hp, &h_errnop);
+#endif
+
+  (void)length;
+  (void)type;
+  (void)rc;
   return 0;
 }
 #endif
-#ifdef HAVE_GETHOSTBYADDR_R_7_REENTRANT
-#define _REENTRANT
-#include <sys/types.h>
-#include <netdb.h>
-int
-main ()
-{
 
-char * address;
-int length;
-int type;
-struct hostent h;
-char buffer[8192];
-int h_errnop;
-struct hostent * hp;
-
-#ifndef gethostbyaddr_r
-  (void)gethostbyaddr_r;
-#endif
-hp = gethostbyaddr_r(address, length, type, &h,
-                     buffer, 8192, &h_errnop);
-  ;
-  return 0;
-}
-#endif
-#ifdef HAVE_GETHOSTBYADDR_R_8
-#include <sys/types.h>
-#include <netdb.h>
-int
-main ()
-{
-
-char * address;
-int length;
-int type;
-struct hostent h;
-char buffer[8192];
-int h_errnop;
-struct hostent * hp;
-int rc;
-
-#ifndef gethostbyaddr_r
-  (void)gethostbyaddr_r;
-#endif
-rc = gethostbyaddr_r(address, length, type, &h,
-                     buffer, 8192, &hp, &h_errnop);
-  ;
-  return 0;
-}
-#endif
-#ifdef HAVE_GETHOSTBYADDR_R_8_REENTRANT
-#define _REENTRANT
-#include <sys/types.h>
-#include <netdb.h>
-int
-main ()
-{
-
-char * address;
-int length;
-int type;
-struct hostent h;
-char buffer[8192];
-int h_errnop;
-struct hostent * hp;
-int rc;
-
-#ifndef gethostbyaddr_r
-  (void)gethostbyaddr_r;
-#endif
-rc = gethostbyaddr_r(address, length, type, &h,
-                     buffer, 8192, &hp, &h_errnop);
-  ;
-  return 0;
-}
-#endif
-#ifdef HAVE_GETHOSTBYNAME_R_3
-#include <string.h>
-#include <sys/types.h>
-#include <netdb.h>
-#undef NULL
-#define NULL (void *)0
-
-int
-main ()
-{
-
-struct hostent_data data;
-#ifndef gethostbyname_r
-  (void)gethostbyname_r;
-#endif
-gethostbyname_r(NULL, NULL, NULL);
-  ;
-  return 0;
-}
-#endif
-#ifdef HAVE_GETHOSTBYNAME_R_3_REENTRANT
-#define _REENTRANT
-#include <string.h>
-#include <sys/types.h>
-#include <netdb.h>
-#undef NULL
-#define NULL (void *)0
-
-int
-main ()
-{
-
-struct hostent_data data;
-#ifndef gethostbyname_r
-  (void)gethostbyname_r;
-#endif
-gethostbyname_r(NULL, NULL, NULL);
-  ;
-  return 0;
-}
-#endif
-#ifdef HAVE_GETHOSTBYNAME_R_5
-#include <sys/types.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#undef NULL
-#define NULL (void *)0
-
-int
-main ()
-{
-#ifndef gethostbyname_r
-  (void)gethostbyname_r;
-#endif
-gethostbyname_r(NULL, NULL, NULL, 0, NULL);
-  ;
-  return 0;
-}
-#endif
-#ifdef HAVE_GETHOSTBYNAME_R_5_REENTRANT
-#define _REENTRANT
-#include <sys/types.h>
-#include <netdb.h>
-#undef NULL
-#define NULL (void *)0
-
-int
-main ()
-{
-
-#ifndef gethostbyname_r
-  (void)gethostbyname_r;
-#endif
-gethostbyname_r(NULL, NULL, NULL, 0, NULL);
-  ;
-  return 0;
-}
-#endif
-#ifdef HAVE_GETHOSTBYNAME_R_6
-#include <sys/types.h>
-#include <netdb.h>
-#undef NULL
-#define NULL (void *)0
-
-int
-main ()
-{
-
-#ifndef gethostbyname_r
-  (void)gethostbyname_r;
-#endif
-gethostbyname_r(NULL, NULL, NULL, 0, NULL, NULL);
-  ;
-  return 0;
-}
-#endif
-#ifdef HAVE_GETHOSTBYNAME_R_6_REENTRANT
-#define _REENTRANT
-#include <sys/types.h>
-#include <netdb.h>
-#undef NULL
-#define NULL (void *)0
-
-int
-main ()
-{
-
-#ifndef gethostbyname_r
-  (void)gethostbyname_r;
-#endif
-gethostbyname_r(NULL, NULL, NULL, 0, NULL, NULL);
-  ;
-  return 0;
-}
-#endif
 #ifdef HAVE_SOCKLEN_T
 #ifdef _WIN32
 #include <ws2tcpip.h>
@@ -339,6 +187,24 @@ if (sizeof (in_addr_t))
   return 0;
 }
 #endif
+
+#ifdef HAVE_BOOL_T
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+#ifdef HAVE_STDBOOL_H
+#include <stdbool.h>
+#endif
+int
+main ()
+{
+if (sizeof (bool *) )
+  return 0;
+  ;
+  return 0;
+}
+#endif
+
 #ifdef STDC_HEADERS
 #include <stdlib.h>
 #include <stdarg.h>
@@ -432,7 +298,20 @@ int main(void) {
 int main () { ; return 0; }
 #endif
 #ifdef HAVE_IOCTLSOCKET
-#include <windows.h>
+/* includes start */
+#ifdef HAVE_WINDOWS_H
+#  ifndef WIN32_LEAN_AND_MEAN
+#    define WIN32_LEAN_AND_MEAN
+#  endif
+#  include <windows.h>
+#  ifdef HAVE_WINSOCK2_H
+#    include <winsock2.h>
+#  else
+#    ifdef HAVE_WINSOCK_H
+#      include <winsock.h>
+#    endif
+#  endif
+#endif
 
 int
 main ()
@@ -447,52 +326,182 @@ main ()
 }
 
 #endif
-#ifdef HAVE_IOCTLSOCKET_CASE
-#include <windows.h>
+#ifdef HAVE_IOCTLSOCKET_CAMEL
+/* includes start */
+#ifdef HAVE_WINDOWS_H
+#  ifndef WIN32_LEAN_AND_MEAN
+#    define WIN32_LEAN_AND_MEAN
+#  endif
+#  include <windows.h>
+#  ifdef HAVE_WINSOCK2_H
+#    include <winsock2.h>
+#  else
+#    ifdef HAVE_WINSOCK_H
+#      include <winsock.h>
+#    endif
+#  endif
+#endif
 
 int
 main ()
 {
 
 /* IoctlSocket source code */
- int socket;
- int flags = IoctlSocket(socket, FIONBIO, (long)1);
-
+    if(0 != IoctlSocket(0, 0, 0))
+      return 1;
   ;
   return 0;
 }
 #endif
-#ifdef HAVE_FIONBIO
-/* headers for FIONBIO test */
-#include <unistd.h>
-#include <stropts.h>
+#ifdef HAVE_IOCTLSOCKET_CAMEL_FIONBIO
+/* includes start */
+#ifdef HAVE_WINDOWS_H
+#  ifndef WIN32_LEAN_AND_MEAN
+#    define WIN32_LEAN_AND_MEAN
+#  endif
+#  include <windows.h>
+#  ifdef HAVE_WINSOCK2_H
+#    include <winsock2.h>
+#  else
+#    ifdef HAVE_WINSOCK_H
+#      include <winsock.h>
+#    endif
+#  endif
+#endif
 
 int
 main ()
 {
 
-/* FIONBIO source test (old-style unix) */
- int socket;
- int flags = ioctl(socket, FIONBIO, &flags);
+/* IoctlSocket source code */
+        long flags = 0;
+        if(0 != ioctlsocket(0, FIONBIO, &flags))
+          return 1;
+  ;
+  return 0;
+}
+#endif
+#ifdef HAVE_IOCTLSOCKET_FIONBIO
+/* includes start */
+#ifdef HAVE_WINDOWS_H
+#  ifndef WIN32_LEAN_AND_MEAN
+#    define WIN32_LEAN_AND_MEAN
+#  endif
+#  include <windows.h>
+#  ifdef HAVE_WINSOCK2_H
+#    include <winsock2.h>
+#  else
+#    ifdef HAVE_WINSOCK_H
+#      include <winsock.h>
+#    endif
+#  endif
+#endif
+
+int
+main ()
+{
+
+        int flags = 0;
+        if(0 != ioctlsocket(0, FIONBIO, &flags))
+          return 1;
 
   ;
   return 0;
 }
 #endif
-#ifdef HAVE_SO_NONBLOCK
+#ifdef HAVE_IOCTL_FIONBIO
+/* headers for FIONBIO test */
+/* includes start */
+#ifdef HAVE_SYS_TYPES_H
+#  include <sys/types.h>
+#endif
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+#ifdef HAVE_SYS_SOCKET_H
+#  include <sys/socket.h>
+#endif
+#ifdef HAVE_SYS_IOCTL_H
+#  include <sys/ioctl.h>
+#endif
+#ifdef HAVE_STROPTS_H
+#  include <stropts.h>
+#endif
 
-/* headers for SO_NONBLOCK test (BeOS) */
-#include <sys/types.h>
-#include <unistd.h>
-#include <fcntl.h>
-
-int main()
+int
+main ()
 {
-/* SO_NONBLOCK source code */
- long b = 1;
- int socket;
- int flags = setsockopt(socket, SOL_SOCKET, SO_NONBLOCK, &b, sizeof(b));
- return 0;
+
+        int flags = 0;
+        if(0 != ioctl(0, FIONBIO, &flags))
+          return 1;
+
+  ;
+  return 0;
+}
+#endif
+#ifdef HAVE_IOCTL_SIOCGIFADDR
+/* headers for FIONBIO test */
+/* includes start */
+#ifdef HAVE_SYS_TYPES_H
+#  include <sys/types.h>
+#endif
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+#ifdef HAVE_SYS_SOCKET_H
+#  include <sys/socket.h>
+#endif
+#ifdef HAVE_SYS_IOCTL_H
+#  include <sys/ioctl.h>
+#endif
+#ifdef HAVE_STROPTS_H
+#  include <stropts.h>
+#endif
+#include <net/if.h>
+
+int
+main ()
+{
+        struct ifreq ifr;
+        if(0 != ioctl(0, SIOCGIFADDR, &ifr))
+          return 1;
+
+  ;
+  return 0;
+}
+#endif
+#ifdef HAVE_SETSOCKOPT_SO_NONBLOCK
+/* includes start */
+#ifdef HAVE_WINDOWS_H
+#  ifndef WIN32_LEAN_AND_MEAN
+#    define WIN32_LEAN_AND_MEAN
+#  endif
+#  include <windows.h>
+#  ifdef HAVE_WINSOCK2_H
+#    include <winsock2.h>
+#  else
+#    ifdef HAVE_WINSOCK_H
+#      include <winsock.h>
+#    endif
+#  endif
+#endif
+/* includes start */
+#ifdef HAVE_SYS_TYPES_H
+#  include <sys/types.h>
+#endif
+#ifdef HAVE_SYS_SOCKET_H
+#  include <sys/socket.h>
+#endif
+/* includes end */
+
+int
+main ()
+{
+        if(0 != setsockopt(0, SOL_SOCKET, SO_NONBLOCK, 0, 0))
+          return 1;
+  ;
+  return 0;
 }
 #endif
 #ifdef HAVE_GLIBC_STRERROR_R

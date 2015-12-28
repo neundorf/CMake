@@ -12,9 +12,9 @@
 #include "cmExprParserHelper.h"
 
 #include "cmSystemTools.h"
-#include "cmExprLexer.h"
-
 #include "cmMakefile.h"
+
+#include "cmExprLexer.h"
 
 int cmExpr_yyparse( yyscan_t yyscanner );
 //
@@ -30,12 +30,6 @@ cmExprParserHelper::~cmExprParserHelper()
   this->CleanupParser();
 }
 
-void cmExprParserHelper::SetLineFile(long line, const char* file)
-{
-  this->FileLine = line;
-  this->FileName = file;
-}
-
 int cmExprParserHelper::ParseString(const char* str, int verb)
 {
   if ( !str)
@@ -48,7 +42,7 @@ int cmExprParserHelper::ParseString(const char* str, int verb)
   this->InputBuffer = str;
   this->InputBufferPos = 0;
   this->CurrentLine = 0;
-  
+
   this->Result = 0;
 
   yyscan_t yyscanner;
@@ -67,7 +61,7 @@ int cmExprParserHelper::ParseString(const char* str, int verb)
 
   if ( Verbose )
     {
-    std::cerr << "Expanding [" << str << "] produced: [" 
+    std::cerr << "Expanding [" << str << "] produced: ["
               << this->Result << "]" << std::endl;
     }
   return 1;
@@ -105,7 +99,7 @@ int cmExprParserHelper::LexInput(char* buf, int maxlen)
 void cmExprParserHelper::Error(const char* str)
 {
   unsigned long pos = static_cast<unsigned long>(this->InputBufferPos);
-  cmOStringStream ostr;
+  std::ostringstream ostr;
   ostr << str << " (" << pos << ")";
   this->ErrorString = ostr.str();
 }

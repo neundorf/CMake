@@ -25,7 +25,7 @@ public:
   /**
    * This is a virtual constructor for the command.
    */
-  virtual cmCommand* Clone() 
+  virtual cmCommand* Clone()
     {
     return new cmEndWhileCommand;
     }
@@ -34,9 +34,9 @@ public:
    * Override cmCommand::InvokeInitialPass to get arguments before
    * expansion.
    */
-  virtual bool InvokeInitialPass(std::vector<cmListFileArgument> const&,
+  virtual bool InvokeInitialPass(std::vector<cmListFileArgument> const& args,
                                  cmExecutionStatus &status);
-  
+
   /**
    * This is called when the command is first encountered in
    * the CMakeLists.txt file.
@@ -47,31 +47,13 @@ public:
   /**
    * This determines if the command is invoked when in script mode.
    */
-  virtual bool IsScriptable() { return true; }
+  virtual bool IsScriptable() const { return true; }
 
   /**
    * The name of the command as specified in CMakeList.txt.
    */
-  virtual const char* GetName() { return "endwhile";}
+  virtual std::string GetName() const { return "endwhile";}
 
-  /**
-   * Succinct documentation.
-   */
-  virtual const char* GetTerseDocumentation() 
-    {
-    return "Ends a list of commands in a while block.";
-    }
-  
-  /**
-   * More documentation.
-   */
-  virtual const char* GetFullDocumentation()
-    {
-    return
-      "  endwhile(expression)\n"
-      "See the while command.";
-    }
-  
   cmTypeMacro(cmEndWhileCommand, cmCommand);
 };
 

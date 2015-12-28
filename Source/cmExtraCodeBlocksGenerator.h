@@ -17,7 +17,7 @@
 
 class cmLocalGenerator;
 class cmMakefile;
-class cmTarget;
+class cmGeneratorTarget;
 class cmGeneratedFileStream;
 
 /** \class cmExtraCodeBlocksGenerator
@@ -28,31 +28,38 @@ class cmExtraCodeBlocksGenerator : public cmExternalMakefileProjectGenerator
 public:
   cmExtraCodeBlocksGenerator();
 
-  virtual const char* GetName() const
+  virtual std::string GetName() const
                          { return cmExtraCodeBlocksGenerator::GetActualName();}
-  static const char* GetActualName()                    { return "CodeBlocks";}
+  static std::string GetActualName()                    { return "CodeBlocks";}
   static cmExternalMakefileProjectGenerator* New()
                                      { return new cmExtraCodeBlocksGenerator; }
   /** Get the documentation entry for this generator.  */
   virtual void GetDocumentation(cmDocumentationEntry& entry,
-                                const char* fullName) const;
+                                const std::string& fullName) const;
 
   virtual void Generate();
 private:
+  struct CbpUnit
+  {
+    std::vector<const cmGeneratorTarget*> Targets;
+  };
 
   void CreateProjectFile(const std::vector<cmLocalGenerator*>& lgs);
 
   void CreateNewProjectFile(const std::vector<cmLocalGenerator*>& lgs,
                                 const std::string& filename);
+  std::string CreateDummyTargetFile(cmLocalGenerator* lg,
+                                    cmGeneratorTarget* target) const;
+
   std::string GetCBCompilerId(const cmMakefile* mf);
-  int GetCBTargetType(cmTarget* target);
+  int GetCBTargetType(cmGeneratorTarget* target);
   std::string BuildMakeCommand(const std::string& make, const char* makefile,
-                               const char* target);
+                               const std::string& target);
   void AppendTarget(cmGeneratedFileStream& fout,
-                    const char* targetName,
-                    cmTarget* target,
+                    const std::string& targetName,
+                    cmGeneratorTarget* target,
                     const char* make,
-                    const cmMakefile* makefile,
+                    const cmLocalGenerator* lg,
                     const char* compiler);
 
 };

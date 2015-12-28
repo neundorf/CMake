@@ -22,13 +22,14 @@
   // Forward declarations are insufficient since we use them in
   // std::map data members below...
 
-#define cmCPackTypeMacro(class, superclass) \
-  cmTypeMacro(class, superclass); \
-  static cmCPackGenerator* CreateGenerator() { return new class; }
+#define cmCPackTypeMacro(klass, superclass) \
+  cmTypeMacro(klass, superclass); \
+  static cmCPackGenerator* CreateGenerator() { return new klass; } \
+  class cmCPackTypeMacro_UseTrailingSemicolon
 
 #define cmCPackLogger(logType, msg) \
   do { \
-    cmOStringStream cmCPackLog_msg; \
+    std::ostringstream cmCPackLog_msg; \
     cmCPackLog_msg << msg; \
     this->Logger->Log(logType, __FILE__, __LINE__,\
                       cmCPackLog_msg.str().c_str());\
@@ -46,6 +47,7 @@
 
 class cmMakefile;
 class cmCPackLog;
+class cmInstalledFile;
 
 /** \class cmCPackGenerator
  * \brief A superclass of all CPack Generators
@@ -61,6 +63,16 @@ public:
   void SetVerbose(bool val)
     { this->GeneratorVerbose = val ?
       cmSystemTools::OUTPUT_MERGE : cmSystemTools::OUTPUT_NONE; }
+
+  /**
+   * Returns true if the generator may work on this system.
+   * Rational:
+   * Some CPack generator may run on some host and may not on others
+   * (with the same system) because some tools are missing. If the tool
+   * is missing then CPack won't activate (in the CPackGeneratorFactory)
+   * this particular generator.
+   */
+  static bool CanGenerate() { return true; }
 
   /**
    * Do the actual whole package processing.
@@ -80,7 +92,7 @@ public:
   /**
    * Initialize generator
    */
-  int Initialize(const char* name, cmMakefile* mf);
+  int Initialize(const std::string& name, cmMakefile* mf);
 
   /**
    * Construct generator
@@ -89,21 +101,19 @@ public:
   virtual ~cmCPackGenerator();
 
   //! Set and get the options
-  void SetOption(const char* op, const char* value);
-  void SetOptionIfNotSet(const char* op, const char* value);
-  const char* GetOption(const char* op) const;
-  bool IsSet(const char* name) const;
-  bool IsOn(const char* name) const;
-
-  //! Set all the variables
-  int SetCMakeRoot();
+  void SetOption(const std::string& op, const char* value);
+  void SetOptionIfNotSet(const std::string& op, const char* value);
+  const char* GetOption(const std::string& op) const;
+  std::vector<std::string> GetOptions() const;
+  bool IsSet(const std::string& name) const;
+  bool IsOn(const std::string& name) const;
 
   //! Set the logger
   void SetLogger(cmCPackLog* log) { this->Logger = log; }
 
   //! Display verbose information via logger
   void DisplayVerboseOutput(const char* msg, float progress);
-  
+
   bool ReadListFile(const char* moduleName);
 
 protected:
@@ -119,6 +129,8 @@ protected:
   int InstallProject();
 
   int CleanTemporaryDirectory();
+
+  cmInstalledFile const* GetInstalledFile(std::string const& name) const;
 
   virtual const char* GetOutputExtension() { return ".cpack"; }
   virtual const char* GetOutputPostfix() { return 0; }
@@ -150,9 +162,10 @@ protected:
    * CPack specific generator may mangle CPACK_PACKAGE_FILE_NAME
    * with CPACK_COMPONENT_xxxx_<NAME>_DISPLAY_NAME if
    * CPACK_<GEN>_USE_DISPLAY_NAME_IN_FILENAME is ON.
-   * @param[in] initialPackageFileName
-   * @param[in] groupOrComponentName
-   * @param[in] isGroupName
+   * @param[in] initialPackageFileName the initial package name to be mangled
+   * @param[in] groupOrComponentName the name of the group/component
+   * @param[in] isGroupName true if previous name refers to a group,
+   *            false otherwise
    */
   virtual std::string GetComponentPackageFileName(
       const std::string& initialPackageFileName,
@@ -162,7 +175,7 @@ protected:
   /**
    * Package the list of files and/or components which
    * has been prepared by the beginning of DoPackage.
-   * @pre @ref toplevel has been filled-in
+   * @pre the @ref toplevel has been filled-in
    * @pre the list of file @ref files has been populated
    * @pre packageFileNames contains at least 1 entry
    * @post packageFileNames may have been updated and contains
@@ -181,21 +194,69 @@ protected:
 
   //! Run install commands if specified
   virtual int InstallProjectViaInstallCommands(
-    bool setDestDir, const char* tempInstallDirectory);
+    bool setDestDir, const std::string& tempInstallDirectory);
   virtual int InstallProjectViaInstallScript(
-    bool setDestDir, const char* tempInstallDirectory);
+    bool setDestDir, const std::string& tempInstallDirectory);
   virtual int InstallProjectViaInstalledDirectories(
-    bool setDestDir, const char* tempInstallDirectory);
+    bool setDestDir, const std::string& tempInstallDirectory);
   virtual int InstallProjectViaInstallCMakeProjects(
-    bool setDestDir, const char* tempInstallDirectory);
+    bool setDestDir, const std::string& tempInstallDirectory);
 
+  /**
+   * The various level of support of
+   * CPACK_SET_DESTDIR used by the generator.
+   */
+  enum CPackSetDestdirSupport {
+    /* the generator works with or without it */
+    SETDESTDIR_SUPPORTED,
+    /* the generator works best if automatically handled */
+    SETDESTDIR_INTERNALLY_SUPPORTED,
+    /* no official support, use at your own risk */
+    SETDESTDIR_SHOULD_NOT_BE_USED,
+    /* officially NOT supported */
+    SETDESTDIR_UNSUPPORTED
+  };
+
+  /**
+   * Does the CPack generator support CPACK_SET_DESTDIR?
+   * The default legacy value is 'SETDESTDIR_SUPPORTED' generator
+   * have to override it in order change this.
+   * @return CPackSetDestdirSupport
+   */
+  virtual enum CPackSetDestdirSupport SupportsSetDestdir() const;
+
+  /**
+   * Does the CPack generator support absolute path
+   * in INSTALL DESTINATION?
+   * The default legacy value is 'true' generator
+   * have to override it in order change this.
+   * @return true if supported false otherwise
+   */
+  virtual bool SupportsAbsoluteDestination() const;
+
+  /**
+   * Does the CPack generator support component installation?.
+   * Some Generators requires the user to set
+   * CPACK_<GENNAME>_COMPONENT_INSTALL in order to make this
+   * method return true.
+   * @return true if supported, false otherwise
+   */
   virtual bool SupportsComponentInstallation() const;
-  virtual cmCPackInstallationType* GetInstallationType(const char *projectName,
-                                                       const char* name);
-  virtual cmCPackComponent* GetComponent(const char *projectName,
-                                         const char* name);
-  virtual cmCPackComponentGroup* GetComponentGroup(const char *projectName,
-                                                   const char* name);
+  /**
+   * Does the currently running generator want a component installation.
+   * The generator may support component installation but he may
+   * be requiring monolithic install using CPACK_MONOLITHIC_INSTALL.
+   * @return true if component installation is supported and wanted.
+   */
+  virtual bool WantsComponentInstallation() const;
+  virtual cmCPackInstallationType* GetInstallationType(
+                                                const std::string& projectName,
+                                                const std::string& name);
+  virtual cmCPackComponent* GetComponent(const std::string& projectName,
+                                         const std::string& name);
+  virtual cmCPackComponentGroup* GetComponentGroup(
+                                                const std::string& projectName,
+                                                const std::string& name);
 
   cmSystemTools::OutputOption GeneratorVerbose;
   std::string Name;
@@ -227,10 +288,6 @@ protected:
    * PackageFiles is called.
    */
   std::vector<std::string> files;
-
-  std::string CPackSelf;
-  std::string CMakeSelf;
-  std::string CMakeRoot;
 
   std::map<std::string, cmCPackInstallationType> InstallationTypes;
   /**

@@ -1,18 +1,16 @@
 # first we add the executable that generates the table
 add_executable(MakeTable MakeTable.cxx)
 
-get_target_property(MakeTableLocation MakeTable LOCATION)
-
 # add the command to generate the source code
 add_custom_command (
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/Table.h
   DEPENDS MakeTable
-  COMMAND ${MakeTableLocation}
+  COMMAND MakeTable
   ARGS ${CMAKE_CURRENT_BINARY_DIR}/Table.h
   )
 
 set_source_files_properties (
-  mysqrt.cxx PROPERTIES 
+  mysqrt.cxx PROPERTIES
   OBJECT_DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/Table.h
   )
 

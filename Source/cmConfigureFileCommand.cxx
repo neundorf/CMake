@@ -26,32 +26,32 @@ bool cmConfigureFileCommand
   const char* inFile = args[0].c_str();
   if(!cmSystemTools::FileIsFullPath(inFile))
     {
-    this->InputFile = this->Makefile->GetCurrentDirectory();
+    this->InputFile = this->Makefile->GetCurrentSourceDirectory();
     this->InputFile += "/";
     }
   this->InputFile += inFile;
 
   // If the input location is a directory, error out.
-  if(cmSystemTools::FileIsDirectory(this->InputFile.c_str()))
+  if(cmSystemTools::FileIsDirectory(this->InputFile))
     {
-    cmOStringStream e;
+    std::ostringstream e;
     e << "input location\n"
       << "  " << this->InputFile << "\n"
       << "is a directory but a file was expected.";
-    this->SetError(e.str().c_str());
+    this->SetError(e.str());
     return false;
     }
 
   const char* outFile = args[1].c_str();
   if(!cmSystemTools::FileIsFullPath(outFile))
     {
-    this->OutputFile = this->Makefile->GetCurrentOutputDirectory();
+    this->OutputFile = this->Makefile->GetCurrentBinaryDirectory();
     this->OutputFile += "/";
     }
   this->OutputFile += outFile;
 
   // If the output location is already a directory put the file in it.
-  if(cmSystemTools::FileIsDirectory(this->OutputFile.c_str()))
+  if(cmSystemTools::FileIsDirectory(this->OutputFile))
     {
     this->OutputFile += "/";
     this->OutputFile += cmSystemTools::GetFilenameName(inFile);
@@ -61,23 +61,20 @@ bool cmConfigureFileCommand
     {
     std::string e = "attempted to configure a file: " + this->OutputFile
       + " into a source directory.";
-    this->SetError(e.c_str());
+    this->SetError(e);
     cmSystemTools::SetFatalErrorOccured();
     return false;
     }
   std::string errorMessage;
   if (!this->NewLineStyle.ReadFromArguments(args, errorMessage))
     {
-    this->SetError(errorMessage.c_str());
+    this->SetError(errorMessage);
     return false;
     }
   this->CopyOnly = false;
   this->EscapeQuotes = false;
 
-  // for CMake 2.0 and earlier CONFIGURE_FILE defaults to the FinalPass,
-  // after 2.0 it only does InitialPass
-  this->Immediate = !this->Makefile->NeedBackwardsCompatibility(2,0);
-
+  std::string unknown_args;
   this->AtOnly = false;
   for(unsigned int i=2;i < args.size();++i)
     {
@@ -101,30 +98,36 @@ bool cmConfigureFileCommand
       }
     else if(args[i] == "IMMEDIATE")
       {
-      this->Immediate = true;
+      /* Ignore legacy option.  */
       }
-    }
-  
-  // If we were told to copy the file immediately, then do it on the
-  // first pass (now).
-  if(this->Immediate)
-    {
-    if ( !this->ConfigureFile() )
+    else if(args[i] == "NEWLINE_STYLE" ||
+            args[i] == "LF" || args[i] == "UNIX" ||
+            args[i] == "CRLF" || args[i] == "WIN32" ||
+            args[i] == "DOS")
       {
-      this->SetError("Problem configuring file");
-      return false;
+      /* Options handled by NewLineStyle member above.  */
+      }
+    else
+      {
+      unknown_args += " ";
+      unknown_args += args[i];
+      unknown_args += "\n";
       }
     }
-  
-  return true;
-}
-
-void cmConfigureFileCommand::FinalPass()
-{
-  if(!this->Immediate)
+  if (!unknown_args.empty())
     {
-    this->ConfigureFile();
+    std::string msg = "configure_file called with unknown argument(s):\n";
+    msg += unknown_args;
+    this->Makefile->IssueMessage(cmake::AUTHOR_WARNING, msg);
     }
+
+  if ( !this->ConfigureFile() )
+    {
+    this->SetError("Problem configuring file");
+    return false;
+    }
+
+  return true;
 }
 
 int cmConfigureFileCommand::ConfigureFile()

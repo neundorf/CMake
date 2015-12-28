@@ -15,26 +15,33 @@
 #include "cmStandardIncludes.h"
 
 class cmCustomCommand;
-class cmMakefile;
 class cmLocalGenerator;
 class cmGeneratorExpression;
 
 class cmCustomCommandGenerator
 {
   cmCustomCommand const& CC;
-  const char* Config;
-  cmMakefile* Makefile;
+  std::string Config;
   cmLocalGenerator* LG;
   bool OldStyle;
   bool MakeVars;
   cmGeneratorExpression* GE;
+  mutable bool DependsDone;
+  mutable std::vector<std::string> Depends;
 public:
-  cmCustomCommandGenerator(cmCustomCommand const& cc, const char* config,
-                           cmMakefile* mf);
+  cmCustomCommandGenerator(cmCustomCommand const& cc,
+                           const std::string& config,
+                           cmLocalGenerator* lg);
   ~cmCustomCommandGenerator();
+  cmCustomCommand const& GetCC() const { return this->CC; }
   unsigned int GetNumberOfCommands() const;
   std::string GetCommand(unsigned int c) const;
   void AppendArguments(unsigned int c, std::string& cmd) const;
+  const char* GetComment() const;
+  std::string GetWorkingDirectory() const;
+  std::vector<std::string> const& GetOutputs() const;
+  std::vector<std::string> const& GetByproducts() const;
+  std::vector<std::string> const& GetDepends() const;
 };
 
 #endif

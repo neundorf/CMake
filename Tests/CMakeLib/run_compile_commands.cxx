@@ -2,14 +2,14 @@
 
 class CompileCommandParser {
 public:
-  class CommandType: public std::map<cmStdString, cmStdString>
+  class CommandType: public std::map<std::string, std::string>
   {
   public:
-    cmStdString const& at(cmStdString const& k) const
+    std::string const& at(std::string const& k) const
       {
       const_iterator i = this->find(k);
       if(i != this->end()) { return i->second; }
-      static cmStdString emptyString;
+      static std::string emptyString;
       return emptyString;
       }
   };
@@ -35,7 +35,7 @@ private:
   void ParseTranslationUnits()
   {
     this->TranslationUnits = TranslationUnitsType();
-    ExpectOrDie('[', "at start of compile command file");
+    ExpectOrDie('[', "at start of compile command file\n");
     do
       {
       ParseTranslationUnit();
@@ -63,12 +63,12 @@ private:
 
   void ParseString()
   {
-    this->String.clear();
+    this->String = "";
     if(!Expect('"')) return;
     while (!Expect('"'))
       {
       Expect('\\');
-      this->String.push_back(C);
+      this->String.append(1,C);
       Next();
       }
   }
@@ -127,10 +127,10 @@ int main ()
       it = parser.GetTranslationUnits().begin(),
       end = parser.GetTranslationUnits().end(); it != end; ++it)
     {
-    std::vector<cmStdString> command;
+    std::vector<std::string> command;
     cmSystemTools::ParseUnixCommandLine(it->at("command").c_str(), command);
     if (!cmSystemTools::RunSingleCommand(
-            command, 0, 0, it->at("directory").c_str()))
+            command, 0, 0, 0, it->at("directory").c_str()))
       {
       std::cout << "ERROR: Failed to run command \""
                 << command[0] << "\"" << std::endl;

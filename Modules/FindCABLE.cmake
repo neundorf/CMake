@@ -1,14 +1,24 @@
-# - Find CABLE
-# This module finds if CABLE is installed and determines where the
-# include files and libraries are.  This code sets the following variables:
+#.rst:
+# FindCABLE
+# ---------
 #
-#  CABLE             the path to the cable executable
-#  CABLE_TCL_LIBRARY the path to the Tcl wrapper library
-#  CABLE_INCLUDE_DIR the path to the include directory
+# Find CABLE
+#
+# This module finds if CABLE is installed and determines where the
+# include files and libraries are.  This code sets the following
+# variables:
+#
+# ::
+#
+#   CABLE             the path to the cable executable
+#   CABLE_TCL_LIBRARY the path to the Tcl wrapper library
+#   CABLE_INCLUDE_DIR the path to the include directory
+#
+#
 #
 # To build Tcl wrappers, you should add shared library and link it to
-# ${CABLE_TCL_LIBRARY}.  You should also add ${CABLE_INCLUDE_DIR} as
-# an include directory.
+# ${CABLE_TCL_LIBRARY}.  You should also add ${CABLE_INCLUDE_DIR} as an
+# include directory.
 
 #=============================================================================
 # Copyright 2001-2009 Kitware, Inc.
@@ -23,12 +33,12 @@
 # (To distribute this file outside of CMake, substitute the full
 #  License text for the above reference.)
 
-IF(NOT CABLE)
-  FIND_PATH(CABLE_BUILD_DIR cableVersion.h)
-ENDIF(NOT CABLE)
+if(NOT CABLE)
+  find_path(CABLE_BUILD_DIR cableVersion.h)
+endif()
 
-IF(CABLE_BUILD_DIR)
-  LOAD_CACHE(${CABLE_BUILD_DIR}
+if(CABLE_BUILD_DIR)
+  load_cache(${CABLE_BUILD_DIR}
              EXCLUDE
                BUILD_SHARED_LIBS
                LIBRARY_OUTPUT_PATH
@@ -39,43 +49,43 @@ IF(CABLE_BUILD_DIR)
                CABLE_LIBRARY_PATH
                CABLE_EXECUTABLE_PATH)
 
-  IF(CABLE_LIBRARY_PATH)
-    FIND_LIBRARY(CABLE_TCL_LIBRARY NAMES CableTclFacility PATHS
+  if(CABLE_LIBRARY_PATH)
+    find_library(CABLE_TCL_LIBRARY NAMES CableTclFacility PATHS
                  ${CABLE_LIBRARY_PATH}
                  ${CABLE_LIBRARY_PATH}/*)
-  ELSE(CABLE_LIBRARY_PATH)
-    FIND_LIBRARY(CABLE_TCL_LIBRARY NAMES CableTclFacility PATHS
+  else()
+    find_library(CABLE_TCL_LIBRARY NAMES CableTclFacility PATHS
                  ${CABLE_BINARY_DIR}/CableTclFacility
                  ${CABLE_BINARY_DIR}/CableTclFacility/*)
-  ENDIF(CABLE_LIBRARY_PATH)
+  endif()
 
-  IF(CABLE_EXECUTABLE_PATH)
-    FIND_PROGRAM(CABLE NAMES cable PATHS
+  if(CABLE_EXECUTABLE_PATH)
+    find_program(CABLE NAMES cable PATHS
                  ${CABLE_EXECUTABLE_PATH}
                  ${CABLE_EXECUTABLE_PATH}/*)
-  ELSE(CABLE_EXECUTABLE_PATH)
-    FIND_PROGRAM(CABLE NAMES cable PATHS
+  else()
+    find_program(CABLE NAMES cable PATHS
                  ${CABLE_BINARY_DIR}/Executables
                  ${CABLE_BINARY_DIR}/Executables/*)
-  ENDIF(CABLE_EXECUTABLE_PATH)
+  endif()
 
-  FIND_PATH(CABLE_INCLUDE_DIR CableTclFacility/ctCalls.h
+  find_path(CABLE_INCLUDE_DIR CableTclFacility/ctCalls.h
             ${CABLE_SOURCE_DIR})
-ELSE(CABLE_BUILD_DIR)
+else()
   # Find the cable executable in the path.
-  FIND_PROGRAM(CABLE NAMES cable)
+  find_program(CABLE NAMES cable)
 
   # Get the path where the executable sits, but without the executable
   # name on it.
-  GET_FILENAME_COMPONENT(CABLE_ROOT_BIN ${CABLE} PATH)
+  get_filename_component(CABLE_ROOT_BIN ${CABLE} PATH)
 
   # Find the cable include directory in a path relative to the cable
   # executable.
-  FIND_PATH(CABLE_INCLUDE_DIR CableTclFacility/ctCalls.h
+  find_path(CABLE_INCLUDE_DIR CableTclFacility/ctCalls.h
             ${CABLE_ROOT_BIN}/../include/Cable)
 
   # Find the WrapTclFacility library in a path relative to the cable
   # executable.
-  FIND_LIBRARY(CABLE_TCL_LIBRARY NAMES CableTclFacility PATHS
+  find_library(CABLE_TCL_LIBRARY NAMES CableTclFacility PATHS
                ${CABLE_ROOT_BIN}/../lib/Cable)
-ENDIF(CABLE_BUILD_DIR)
+endif()

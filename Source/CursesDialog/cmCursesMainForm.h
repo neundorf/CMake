@@ -9,8 +9,8 @@
   implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   See the License for more information.
 ============================================================================*/
-#ifndef __cmCursesMainForm_h
-#define __cmCursesMainForm_h
+#ifndef cmCursesMainForm_h
+#define cmCursesMainForm_h
 
 #include "../cmStandardIncludes.h"
 #include "cmCursesForm.h"
@@ -30,12 +30,12 @@ class cmCursesMainForm : public cmCursesForm
 public:
   cmCursesMainForm(std::vector<std::string> const& args, int initwidth);
   virtual ~cmCursesMainForm();
-  
+
   /**
    * Set the widgets which represent the cache entries.
    */
   void InitializeUI();
-  
+
   /**
    * Handle user input.
    */
@@ -51,7 +51,7 @@ public:
    * Returns true if an entry with the given key is in the
    * list of current composites.
    */
-  bool LookForCacheEntry(const char* key);
+  bool LookForCacheEntry(const std::string& key);
 
   enum {
     MIN_WIDTH = 65,
@@ -65,7 +65,7 @@ public:
    * exception is during a resize. The optional argument specifies the
    * string to be displayed in the status bar.
    */
-  virtual void UpdateStatusBar() { this->UpdateStatusBar(0); } 
+  virtual void UpdateStatusBar() { this->UpdateStatusBar(0); }
   virtual void UpdateStatusBar(const char* message);
 
   /**
@@ -90,7 +90,7 @@ public:
   int Configure(int noconfigure=0);
 
   /**
-   * Used to generate 
+   * Used to generate
    */
   int Generate();
 
@@ -98,7 +98,7 @@ public:
    * Used by main program
    */
   int LoadCache(const char *dir);
-  
+
   /**
    * Progress callback
    */
@@ -113,7 +113,7 @@ protected:
   // cache.
   void FillCacheManagerFromUI();
   // Fix formatting of values to a consistent form.
-  void FixValue(cmCacheManager::CacheEntryType type,
+  void FixValue(cmState::CacheEntryType type,
                 const std::string& in, std::string& out) const;
   // Re-post the existing fields. Used to toggle between
   // normal and advanced modes. Render() should be called
@@ -161,4 +161,4 @@ protected:
   bool SearchMode;
 };
 
-#endif // __cmCursesMainForm_h
+#endif // cmCursesMainForm_h

@@ -26,6 +26,7 @@ cmCTestGenericHandler* cmCTestUploadCommand::InitializeHandler()
     }
   static_cast<cmCTestUploadHandler*>(handler)->SetFiles(this->Files);
 
+  handler->SetQuiet(this->Quiet);
   return handler;
 }
 
@@ -38,6 +39,12 @@ bool cmCTestUploadCommand::CheckArgumentKeyword(std::string const& arg)
     this->ArgumentDoing = ArgumentDoingFiles;
     return true;
     }
+  if(arg == "QUIET")
+    {
+    this->ArgumentDoing = ArgumentDoingNone;
+    this->Quiet = true;
+    return true;
+    }
   return false;
 }
 
@@ -47,7 +54,7 @@ bool cmCTestUploadCommand::CheckArgumentValue(std::string const& arg)
 {
   if(this->ArgumentDoing == ArgumentDoingFiles)
     {
-    cmStdString filename(arg);
+    std::string filename(arg);
     if(cmSystemTools::FileExists(filename.c_str()))
       {
       this->Files.insert(filename);
@@ -55,7 +62,7 @@ bool cmCTestUploadCommand::CheckArgumentValue(std::string const& arg)
       }
     else
       {
-      cmOStringStream e;
+      std::ostringstream e;
       e << "File \"" << filename << "\" does not exist. Cannot submit "
           << "a non-existent file.";
       this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());

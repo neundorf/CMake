@@ -7,8 +7,8 @@ function(test_for_xcode4 result_var)
     execute_process(COMMAND xcodebuild -version
       OUTPUT_VARIABLE ov RESULT_VARIABLE rv
       )
-    if("${rv}" STREQUAL "0")
-      if(ov MATCHES "^Xcode 4.[0-9].*$")
+    if("${rv}" STREQUAL "0" AND ov MATCHES "^Xcode ([0-9]+)\\.")
+      if(NOT CMAKE_MATCH_1 VERSION_LESS 4)
         set(${result_var} 1 PARENT_SCOPE)
       endif()
     endif()
@@ -17,7 +17,8 @@ endfunction()
 
 if(APPLE)
   # only use multi-arch if the sysroot exists on this machine
-  if(EXISTS "${CMAKE_OSX_SYSROOT}")
+  # Ninja needs -M which could not be used with multiple -arch flags
+  if(EXISTS "${CMAKE_OSX_SYSROOT}" AND NOT "${CMAKE_GENERATOR}" MATCHES "Ninja")
     set(CMAKE_OSX_ARCHITECTURES "ppc;i386")
     test_for_xcode4(is_xcode4)
     if(is_xcode4)
@@ -25,8 +26,8 @@ if(APPLE)
       # Arch 'ppc' no longer works: tools no longer available starting with Xcode 4
       set(CMAKE_OSX_ARCHITECTURES i386 x86_64)
     endif()
-  endif(EXISTS "${CMAKE_OSX_SYSROOT}")
-endif(APPLE)
+  endif()
+endif()
 
 add_library(foo STATIC ${testRebuild_BINARY_DIR}/foo.cxx)
 set_target_properties(foo PROPERTIES OUTPUT_NAME "foolib")
@@ -59,16 +60,17 @@ add_executable(bar bar.cxx
   )
 
 #-----------------------------------------------------------------------------
-IF("${CMAKE_GENERATOR}" MATCHES "Make")
+if("${CMAKE_GENERATOR}" MATCHES "Make")
   # Test the IMPLICIT_DEPENDS feature.
-  SET(ZOT_DEPENDS IMPLICIT_DEPENDS CXX ${CMAKE_CURRENT_SOURCE_DIR}/dep.cxx)
-  SET(ZOT_CUSTOM_DEP
-    IMPLICIT_DEPENDS CXX ${CMAKE_CURRENT_SOURCE_DIR}/dep_custom.cxx)
-ELSE("${CMAKE_GENERATOR}" MATCHES "Make")
+  set(ZOT_DEPENDS IMPLICIT_DEPENDS CXX ${CMAKE_CURRENT_SOURCE_DIR}/dep.cxx)
+  set(ZOT_CUSTOM_DEP
+    IMPLICIT_DEPENDS CXX ${CMAKE_CURRENT_SOURCE_DIR}/dep_custom.cxx
+                     CXX ${CMAKE_CURRENT_SOURCE_DIR}/dep_custom2.cxx )
+else()
   # No IMPLICIT_DEPENDS...just depend directly.
-  SET(ZOT_DEPENDS DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/zot.hxx.in)
-  SET(ZOT_CUSTOM_DEP DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/zot_custom.hxx.in)
-ENDIF("${CMAKE_GENERATOR}" MATCHES "Make")
+  set(ZOT_DEPENDS DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/zot.hxx.in)
+  set(ZOT_CUSTOM_DEP DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/zot_custom.hxx.in)
+endif()
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/zot.hxx
   COMMAND ${CMAKE_COMMAND} -E copy
@@ -106,3 +108,89 @@ if(TEST_LINK_DEPENDS)
   add_executable(linkdep linkdep.cxx)
   set_property(TARGET linkdep PROPERTY LINK_DEPENDS ${TEST_LINK_DEPENDS})
 endif()
+
+add_library(link_depends_no_shared_lib SHARED link_depends_no_shared_lib.c
+  ${CMAKE_CURRENT_BINARY_DIR}/link_depends_no_shared_lib.h)
+add_executable(link_depends_no_shared_exe link_depends_no_shared_exe.c
+  ${CMAKE_CURRENT_BINARY_DIR}/link_depends_no_shared_exe.h)
+target_link_libraries(link_depends_no_shared_exe link_depends_no_shared_lib)
+set_property(TARGET link_depends_no_shared_exe PROPERTY LINK_DEPENDS_NO_SHARED 1)
+add_custom_target(link_depends_no_shared_check ALL
+  COMMAND ${CMAKE_COMMAND}
+   -Dlib=$<TARGET_FILE:link_depends_no_shared_lib>
+   -Dexe=$<TARGET_FILE:link_depends_no_shared_exe>
+   -Dout=${CMAKE_CURRENT_BINARY_DIR}/link_depends_no_shared_check.txt
+   -P ${CMAKE_CURRENT_SOURCE_DIR}/link_depends_no_shared_check.cmake
+  )
+add_dependencies(link_depends_no_shared_check link_depends_no_shared_exe)
+
+add_custom_command(
+  OUTPUT  ${CMAKE_CURRENT_BINARY_DIR}/dir/header.h
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/dir/header.txt
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+  ${CMAKE_CURRENT_BINARY_DIR}/dir/header.txt
+  ${CMAKE_CURRENT_BINARY_DIR}/dir/header.h
+  )
+
+set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/dir/header.h
+  PROPERTIES GENERATED 1)
+
+add_custom_target(header_tgt DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/dir/header.h)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+add_executable(ninjadep ninjadep.cpp)
+add_dependencies(ninjadep header_tgt)
+
+include(ExternalProject)
+ExternalProject_Add(ExternalBuild
+  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/External
+  BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/External
+  STAMP_DIR ${CMAKE_CURRENT_BINARY_DIR}/External/Stamp
+  BUILD_ALWAYS 1
+  CMAKE_ARGS
+    -Dexternal_in=${CMAKE_CURRENT_BINARY_DIR}/external.in
+    -Dexternal_out=${CMAKE_CURRENT_BINARY_DIR}/external.out
+  INSTALL_COMMAND ""
+  )
+
+add_custom_command(
+  OUTPUT multi1-out1.txt multi1-out2.txt
+  COMMAND ${CMAKE_COMMAND} -E copy multi1-in.txt multi1-out1.txt
+  COMMAND ${CMAKE_COMMAND} -E copy multi1-in.txt multi1-out2.txt
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/multi1-in.txt
+  )
+add_custom_command(
+  OUTPUT multi1-out2-copy.txt
+  COMMAND ${CMAKE_COMMAND} -E copy multi1-out2.txt multi1-out2-copy.txt
+  DEPENDS multi1-out2.txt
+  )
+add_custom_target(multi1 ALL DEPENDS multi1-out2-copy.txt)
+
+# Test having the first output never created.
+add_custom_command(
+  OUTPUT multi2-dummy.txt multi2-real.txt
+  COMMAND ${CMAKE_COMMAND} -E touch multi2-real.txt
+  )
+set_property(SOURCE multi2-real.txt multi2-dummy.txt PROPERTY SYMBOLIC 1)
+add_custom_target(multi2 ALL DEPENDS multi2-real.txt)
+
+if(TEST_MULTI3)
+  # Test having the second output never created.  Does not work with msbuild.
+  add_custom_command(
+    OUTPUT multi3-real.txt multi3-dummy.txt
+    COMMAND ${CMAKE_COMMAND} -E touch multi3-real.txt
+    )
+  set_property(SOURCE multi3-real.txt multi3-dummy.txt PROPERTY SYMBOLIC 1)
+  add_custom_target(multi3 ALL DEPENDS multi3-real.txt)
+endif()
+
+add_executable(object_depends object_depends.cxx)
+set_property(SOURCE object_depends.cxx PROPERTY OBJECT_DEPENDS
+  ${CMAKE_CURRENT_BINARY_DIR}/object_depends.txt)
+add_custom_target(object_depends_check ALL
+  COMMAND ${CMAKE_COMMAND}
+   -Dexe=$<TARGET_FILE:object_depends>
+   -Dout=${CMAKE_CURRENT_BINARY_DIR}/object_depends_check.txt
+   -Dtxt=${CMAKE_CURRENT_BINARY_DIR}/object_depends.txt
+   -P ${CMAKE_CURRENT_SOURCE_DIR}/object_depends_check.cmake
+  )
+add_dependencies(object_depends_check object_depends)

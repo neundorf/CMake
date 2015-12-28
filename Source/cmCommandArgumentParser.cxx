@@ -183,12 +183,6 @@ static void cmCommandArgumentError(yyscan_t yyscanner, const char* message);
 #define YYINITDEPTH 10000
 
 /* Disable some warnings in the generated code.  */
-#ifdef __BORLANDC__
-# pragma warn -8004 /* Variable assigned a value that is not used.  */
-# pragma warn -8008 /* condition always returns true */
-# pragma warn -8060 /* possibly incorrect assignment */
-# pragma warn -8066 /* unreachable code */
-#endif
 #ifdef _MSC_VER
 # pragma warning (disable: 4102) /* Unused goto label.  */
 # pragma warning (disable: 4065) /* Switch statement contains default but no
@@ -279,7 +273,7 @@ typedef short int yytype_int16;
 #define YYSIZE_MAXIMUM ((YYSIZE_T) -1)
 
 #ifndef YY_
-# if YYENABLE_NLS
+# if defined YYENABLE_NLS && YYENABLE_NLS
 #  if ENABLE_NLS
 #   include <libintl.h> /* INFRINGES ON USER NAME SPACE */
 #   define YY_(msgid) dgettext ("bison-runtime", msgid)
@@ -701,7 +695,7 @@ while (YYID (0))
    we won't break user code: when these are the locations we know.  */
 
 #ifndef YY_LOCATION_PRINT
-# if YYLTYPE_IS_TRIVIAL
+# if defined YYLTYPE_IS_TRIVIAL && YYLTYPE_IS_TRIVIAL
 #  define YY_LOCATION_PRINT(File, Loc)                  \
      fprintf (File, "%d.%d-%d.%d",                      \
               (Loc).first_line, (Loc).first_column,     \

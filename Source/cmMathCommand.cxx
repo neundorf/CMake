@@ -28,7 +28,7 @@ bool cmMathCommand
     return this->HandleExprCommand(args);
     }
   std::string e = "does not recognize sub-command "+subCommand;
-  this->SetError(e.c_str());
+  this->SetError(e);
   return false;
 }
 
@@ -43,19 +43,19 @@ bool cmMathCommand::HandleExprCommand(std::vector<std::string> const& args)
 
   const std::string& outputVariable = args[1];
   const std::string& expression = args[2];
-  
+
   cmExprParserHelper helper;
   if ( !helper.ParseString(expression.c_str(), 0) )
     {
     std::string e = "cannot parse the expression: \""+expression+"\": ";
     e += helper.GetError();
-    this->SetError(e.c_str());
+    this->SetError(e);
     return false;
     }
 
   char buffer[1024];
   sprintf(buffer, "%d", helper.GetResult());
 
-  this->Makefile->AddDefinition(outputVariable.c_str(), buffer);
+  this->Makefile->AddDefinition(outputVariable, buffer);
   return true;
 }

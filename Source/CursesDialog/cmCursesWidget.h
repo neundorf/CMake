@@ -9,10 +9,10 @@
   implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   See the License for more information.
 ============================================================================*/
-#ifndef __cmCursesWidget_h
-#define __cmCursesWidget_h
+#ifndef cmCursesWidget_h
+#define cmCursesWidget_h
 
-#include "../cmCacheManager.h"
+#include "../cmState.h"
 #include "cmCursesStandardIncludes.h"
 
 class cmCursesMainForm;
@@ -22,7 +22,7 @@ class cmCursesWidget
 public:
   cmCursesWidget(int width, int height, int left, int top);
   virtual ~cmCursesWidget();
-  
+
   /**
    * Handle user input. Called by the container of this widget
    * when this widget has focus. Returns true if the input was
@@ -40,13 +40,13 @@ public:
    * Set/Get the value (setting the value also changes the contents
    * of the field buffer).
    */
-  virtual void SetValue(const char* value);
+  virtual void SetValue(const std::string& value);
   virtual const char* GetValue();
 
   /**
    * Get the type of the widget (STRING, PATH etc...)
    */
-  cmCacheManager::CacheEntryType GetType()
+  cmState::CacheEntryType GetType()
     { return this->Type; }
 
   /**
@@ -77,11 +77,11 @@ protected:
   cmCursesWidget(const cmCursesWidget& from);
   void operator=(const cmCursesWidget&);
 
-  cmCacheManager::CacheEntryType Type;
+  cmState::CacheEntryType Type;
   std::string Value;
   FIELD* Field;
   // The page in the main form this widget is in
   int Page;
 };
 
-#endif // __cmCursesWidget_h
+#endif // cmCursesWidget_h

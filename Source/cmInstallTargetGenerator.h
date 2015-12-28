@@ -13,7 +13,8 @@
 #define cmInstallTargetGenerator_h
 
 #include "cmInstallGenerator.h"
-#include "cmTarget.h"
+
+class cmGeneratorTarget;
 
 /** \class cmInstallTargetGenerator
  * \brief Generate target installation rules.
@@ -22,12 +23,12 @@ class cmInstallTargetGenerator: public cmInstallGenerator
 {
 public:
   cmInstallTargetGenerator(
-    cmTarget& t, const char* dest, bool implib,
-    const char* file_permissions = "",
-    std::vector<std::string> const& configurations 
-    = std::vector<std::string>(),
-    const char* component = "Unspecified",
-    bool optional = false
+    std::string const& targetName, const char* dest, bool implib,
+    const char* file_permissions,
+    std::vector<std::string> const& configurations,
+    const char* component,
+    MessageLevel message,
+    bool optional
     );
   virtual ~cmInstallTargetGenerator();
 
@@ -42,7 +43,7 @@ public:
   void SetNamelinkMode(NamelinkModeType mode) { this->NamelinkMode = mode; }
   NamelinkModeType GetNamelinkMode() const { return this->NamelinkMode; }
 
-  std::string GetInstallFilename(const char* config) const;
+  std::string GetInstallFilename(const std::string& config) const;
 
   enum NameType
   {
@@ -52,51 +53,63 @@ public:
     NameReal
   };
 
-  static std::string GetInstallFilename(cmTarget*target, const char* config,
+  static std::string GetInstallFilename(const cmGeneratorTarget* target,
+                                        const std::string& config,
                                         NameType nameType = NameNormal);
 
-  cmTarget* GetTarget() const { return this->Target; }
+  void Compute(cmLocalGenerator* lg);
+
+  cmGeneratorTarget* GetTarget() const { return this->Target; }
+
   bool IsImportLibrary() const { return this->ImportLibrary; }
+
+  std::string GetDestination(std::string const& config) const;
 
 protected:
   virtual void GenerateScript(std::ostream& os);
   virtual void GenerateScriptForConfig(std::ostream& os,
-                                       const char* config,
+                                       const std::string& config,
                                        Indent const& indent);
   typedef void (cmInstallTargetGenerator::*TweakMethod)(
-    std::ostream&, Indent const&, const char*, std::string const&
+    std::ostream&, Indent const&, const std::string&, std::string const&
     );
   void AddTweak(std::ostream& os, Indent const& indent,
-                const char* config, std::string const& file,
+                const std::string& config, std::string const& file,
                 TweakMethod tweak);
   void AddTweak(std::ostream& os, Indent const& indent,
-                const char* config, std::vector<std::string> const& files,
+                const std::string& config,
+                std::vector<std::string> const& files,
                 TweakMethod tweak);
   std::string GetDestDirPath(std::string const& file);
   void PreReplacementTweaks(std::ostream& os, Indent const& indent,
-                            const char* config, std::string const& file);
+                            const std::string& config,
+                            std::string const& file);
   void PostReplacementTweaks(std::ostream& os, Indent const& indent,
-                             const char* config, std::string const& file);
+                             const std::string& config,
+                             std::string const& file);
   void AddInstallNamePatchRule(std::ostream& os, Indent const& indent,
-                               const char* config,
+                               const std::string& config,
                                const std::string& toDestDirPath);
   void AddChrpathPatchRule(std::ostream& os, Indent const& indent,
-                           const char* config,
+                           const std::string& config,
                            std::string const& toDestDirPath);
   void AddRPathCheckRule(std::ostream& os, Indent const& indent,
-                         const char* config,
+                         const std::string& config,
                          std::string const& toDestDirPath);
-  
+
   void AddStripRule(std::ostream& os, Indent const& indent,
                     const std::string& toDestDirPath);
   void AddRanlibRule(std::ostream& os, Indent const& indent,
                      const std::string& toDestDirPath);
+  void AddUniversalInstallRule(std::ostream& os, Indent const& indent,
+                               const std::string& toDestDirPath);
 
-  cmTarget* Target;
-  bool ImportLibrary;
+  std::string TargetName;
+  cmGeneratorTarget* Target;
   std::string FilePermissions;
-  bool Optional;
   NamelinkModeType NamelinkMode;
+  bool ImportLibrary;
+  bool Optional;
 };
 
 #endif

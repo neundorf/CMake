@@ -10,7 +10,6 @@
   See the License for more information.
 ============================================================================*/
 #include "cmLocalVisualStudio10Generator.h"
-#include "cmTarget.h"
 #include "cmMakefile.h"
 #include "cmVisualStudio10TargetGenerator.h"
 #include "cmGlobalVisualStudio10Generator.h"
@@ -19,28 +18,28 @@
 class cmVS10XMLParser : public cmXMLParser
 {
   public:
-  virtual void EndElement(const char* /* name */)
+  virtual void EndElement(const std::string& /* name */)
     {
-    } 
+    }
   virtual void CharacterDataHandler(const char* data, int length)
-    { 
+    {
       if(this->DoGUID )
         {
         this->GUID.assign(data+1, length-2);
         this->DoGUID = false;
         }
     }
-  virtual void StartElement(const char* name, const char**)
+  virtual void StartElement(const std::string& name, const char**)
     {
       // once the GUID is found do nothing
-      if(this->GUID.size())
+      if(!this->GUID.empty())
         {
         return;
         }
-      if(strcmp("ProjectGUID", name) == 0 || strcmp("ProjectGuid", name) == 0)
+      if("ProjectGUID" == name || "ProjectGuid" == name)
         {
         this->DoGUID = true;
-        } 
+        }
     }
   int InitializeParser()
     {
@@ -50,7 +49,7 @@ class cmVS10XMLParser : public cmXMLParser
         {
         return ret;
         }
-      // visual studio projects have a strange encoding, but it is 
+      // visual studio projects have a strange encoding, but it is
       // really utf-8
       XML_SetEncoding(static_cast<XML_Parser>(this->Parser), "utf-8");
       return 1;
@@ -61,8 +60,9 @@ class cmVS10XMLParser : public cmXMLParser
 
 
 //----------------------------------------------------------------------------
-cmLocalVisualStudio10Generator::cmLocalVisualStudio10Generator(VSVersion v):
-  cmLocalVisualStudio7Generator(v)
+cmLocalVisualStudio10Generator
+::cmLocalVisualStudio10Generator(cmGlobalGenerator* gg, cmMakefile* mf):
+  cmLocalVisualStudio7Generator(gg, mf)
 {
 }
 
@@ -72,37 +72,24 @@ cmLocalVisualStudio10Generator::~cmLocalVisualStudio10Generator()
 
 void cmLocalVisualStudio10Generator::Generate()
 {
-  
-  cmTargets &tgts = this->Makefile->GetTargets();
-  // Create the regeneration custom rule.
-  if(!this->Makefile->IsOn("CMAKE_SUPPRESS_REGENERATION"))
-    {
-    // Create a rule to regenerate the build system when the target
-    // specification source changes.
-    if(cmSourceFile* sf = this->CreateVCProjBuildRule())
-      {
-      // Add the rule to targets that need it.
-      for(cmTargets::iterator l = tgts.begin(); l != tgts.end(); ++l)
-        {
-        if(l->first != CMAKE_CHECK_BUILD_SYSTEM_TARGET)
-          {
-          l->second.AddSourceFile(sf);
-          }
-        }
-      }
-    }
 
-  for(cmTargets::iterator l = tgts.begin(); l != tgts.end(); ++l)
+  std::vector<cmGeneratorTarget*> tgts = this->GetGeneratorTargets();
+  for(std::vector<cmGeneratorTarget*>::iterator l = tgts.begin();
+      l != tgts.end(); ++l)
     {
-    if(static_cast<cmGlobalVisualStudioGenerator*>(this->GlobalGenerator)
-       ->TargetIsFortranOnly(l->second))
+    if((*l)->GetType() == cmState::INTERFACE_LIBRARY)
       {
-      this->CreateSingleVCProj(l->first.c_str(),l->second);
+      continue;
+      }
+    if(static_cast<cmGlobalVisualStudioGenerator*>(this->GlobalGenerator)
+       ->TargetIsFortranOnly(*l))
+      {
+      this->CreateSingleVCProj((*l)->GetName().c_str(), *l);
       }
     else
       {
       cmVisualStudio10TargetGenerator tg(
-        &l->second, static_cast<cmGlobalVisualStudio10Generator*>(
+        *l, static_cast<cmGlobalVisualStudio10Generator*>(
           this->GetGlobalGenerator()));
       tg.Generate();
       }
@@ -112,11 +99,18 @@ void cmLocalVisualStudio10Generator::Generate()
 
 
 void cmLocalVisualStudio10Generator
-::ReadAndStoreExternalGUID(const char* name,
+::ReadAndStoreExternalGUID(const std::string& name,
                            const char* path)
 {
   cmVS10XMLParser parser;
-  parser.ParseFile(path); 
+  parser.ParseFile(path);
+
+  // if we can not find a GUID then we will generate one later
+  if(parser.GUID.empty())
+    {
+    return;
+    }
+
   std::string guidStoreName = name;
   guidStoreName += "_GUID_CMAKE";
   // save the GUID in the cache
@@ -124,7 +118,7 @@ void cmLocalVisualStudio10Generator
     AddCacheEntry(guidStoreName.c_str(),
                   parser.GUID.c_str(),
                   "Stored GUID",
-                  cmCacheManager::INTERNAL);
+                  cmState::INTERNAL);
 }
 
 //----------------------------------------------------------------------------

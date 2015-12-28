@@ -27,6 +27,8 @@ public:
   cmCTestRunTest(cmCTestTestHandler* handler);
   ~cmCTestRunTest();
 
+  void SetNumberOfRuns(int n) {this->NumberOfRunsLeft = n;}
+  void SetRunUntilFailOn() { this->RunUntilFail = true;}
   void SetTestProperties(cmCTestTestHandler::cmCTestTestProperties * prop)
   { this->TestProperties = prop; }
 
@@ -58,7 +60,10 @@ public:
   void ComputeArguments();
 
   void ComputeWeightedCost();
+
+  bool StartAgain();
 private:
+  bool NeedsToRerun();
   void DartProcessing();
   void ExeNotFound(std::string exe);
   // Figures out a final timeout which is min(STOP_TIME, NOW+TIMEOUT)
@@ -74,7 +79,7 @@ private:
   cmCTestTestHandler * TestHandler;
   cmCTest * CTest;
   cmProcess * TestProcess;
-  //If the executable to run is ctest, don't create a new process; 
+  //If the executable to run is ctest, don't create a new process;
   //just instantiate a new cmTest.  (Can be disabled for a single test
   //if this option is set to false.)
   //bool OptimizeForCTest;
@@ -92,6 +97,10 @@ private:
   std::string ActualCommand;
   std::vector<std::string> Arguments;
   bool StopTimePassed;
+  bool RunUntilFail;
+  int NumberOfRunsLeft;
+  bool RunAgain;
+  size_t TotalNumberOfTests;
 };
 
 inline int getNumWidth(size_t n)

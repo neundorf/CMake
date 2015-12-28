@@ -27,6 +27,8 @@ public:
   enum Tool
   {
     Compiler,
+    ResourceCompiler,
+    MasmCompiler,
     Linker,
     FortranCompiler
   };
@@ -35,6 +37,13 @@ public:
                                  cmVS7FlagTable const* table,
                                  cmVS7FlagTable const* extraTable = 0,
                                  cmVisualStudio10TargetGenerator* g = 0);
+
+  cmVisualStudioGeneratorOptions(cmLocalVisualStudioGenerator* lg,
+                                 Tool tool,
+                                 cmVisualStudio10TargetGenerator* g = 0);
+
+  // Add a table of flags.
+  void AddTable(cmVS7FlagTable const* table);
 
   // Store options from command line flags.
   void Parse(const char* flags);
@@ -47,14 +56,16 @@ public:
   void SetVerboseMakefile(bool verbose);
 
   // Check for specific options.
-  bool UsingUnicode();
+  bool UsingUnicode() const;
+  bool UsingSBCS() const;
 
-  bool IsDebug();
+  bool IsDebug() const;
+  bool IsWinRt() const;
   // Write options to output.
   void OutputPreprocessorDefinitions(std::ostream& fout,
                                      const char* prefix,
                                      const char* suffix,
-                                     const char* lang);
+                                     const std::string& lang);
   void OutputFlagMap(std::ostream& fout, const char* indent);
   void OutputAdditionalOptions(std::ostream& fout,
                                const char* prefix,
@@ -62,7 +73,7 @@ public:
   void SetConfiguration(const char* config);
 private:
   cmLocalVisualStudioGenerator* LocalGenerator;
-  cmLocalVisualStudioGenerator::VSVersion Version;
+  cmGlobalVisualStudioGenerator::VSVersion Version;
 
   std::string Configuration;
   Tool CurrentTool;

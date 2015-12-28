@@ -4,6 +4,7 @@
 
 #include <QWizard>
 #include <QWizardPage>
+#include "cmake.h"
 #include "ui_Compilers.h"
 #include "ui_CrossCompiler.h"
 
@@ -27,26 +28,35 @@ class StartCompilerSetup : public QWizardPage
   public:
     StartCompilerSetup(QWidget* p);
     ~StartCompilerSetup();
-    void setGenerators(const QStringList& gens);
+    void setGenerators(std::vector<cmake::GeneratorInfo> const& gens);
     void setCurrentGenerator(const QString& gen);
     QString getGenerator() const;
-    
+    QString getToolset() const;
+
     bool defaultSetup() const;
     bool compilerSetup() const;
     bool crossCompilerSetup() const;
     bool crossCompilerToolChainFile() const;
 
     int nextId() const;
-  
+
   signals:
     void selectionChanged();
 
   protected slots:
     void onSelectionChanged(bool);
+    void onGeneratorChanged(QString const& name);
 
   protected:
     QComboBox* GeneratorOptions;
     QRadioButton* CompilerSetupOptions[4];
+    QFrame* ToolsetFrame;
+    QLineEdit* Toolset;
+    QLabel* ToolsetLabel;
+    QStringList GeneratorsSupportingToolset;
+
+  private:
+    QFrame* CreateToolsetWidgets();
 };
 
 //! the page that gives basic options for native compilers
@@ -56,7 +66,7 @@ class NativeCompilerSetup : public QWizardPage, protected Ui::Compilers
   public:
     NativeCompilerSetup(QWidget* p);
     ~NativeCompilerSetup();
-    
+
     QString getCCompiler() const;
     void setCCompiler(const QString&);
 
@@ -65,7 +75,7 @@ class NativeCompilerSetup : public QWizardPage, protected Ui::Compilers
 
     QString getFortranCompiler() const;
     void setFortranCompiler(const QString&);
-    
+
     int nextId() const { return -1; }
 };
 
@@ -76,13 +86,13 @@ class CrossCompilerSetup : public QWizardPage, protected Ui::CrossCompiler
   public:
     CrossCompilerSetup(QWidget* p);
     ~CrossCompilerSetup();
-    
+
     QString getSystem() const;
     void setSystem(const QString&);
-    
+
     QString getVersion() const;
     void setVersion(const QString&);
-    
+
     QString getProcessor() const;
     void setProcessor(const QString&);
 
@@ -94,7 +104,7 @@ class CrossCompilerSetup : public QWizardPage, protected Ui::CrossCompiler
 
     QString getFortranCompiler() const;
     void setFortranCompiler(const QString&);
-    
+
     QString getFindRoot() const;
     void setFindRoot(const QString&);
 
@@ -104,14 +114,14 @@ class CrossCompilerSetup : public QWizardPage, protected Ui::CrossCompiler
         ONLY,
         NEVER
       };
-  
+
     int getProgramMode() const;
     void setProgramMode(int);
     int getLibraryMode() const;
     void setLibraryMode(int);
     int getIncludeMode() const;
     void setIncludeMode(int);
-    
+
     int nextId() const { return -1; }
 };
 
@@ -127,7 +137,7 @@ class ToolchainCompilerSetup : public QWizardPage
     void setToolchainFile(const QString&);
 
     int nextId() const { return -1; }
-    
+
   protected:
     QCMakeFilePathEditor* ToolchainFile;
 };
@@ -140,8 +150,9 @@ public:
   FirstConfigure();
   ~FirstConfigure();
 
-  void setGenerators(const QStringList& gens);
+  void setGenerators(std::vector<cmake::GeneratorInfo> const& gens);
   QString getGenerator() const;
+  QString getToolset() const;
 
   bool defaultSetup() const;
   bool compilerSetup() const;
@@ -151,7 +162,7 @@ public:
   QString getCCompiler() const;
   QString getCXXCompiler() const;
   QString getFortranCompiler() const;
-  
+
   QString getSystemName() const;
   QString getSystemVersion() const;
   QString getSystemProcessor() const;
@@ -159,7 +170,7 @@ public:
   QString getCrossProgramMode() const;
   QString getCrossLibraryMode() const;
   QString getCrossIncludeMode() const;
-  
+
   QString getCrossCompilerToolChainFile() const;
 
   void loadFromSettings();

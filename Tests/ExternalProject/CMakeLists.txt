@@ -3,9 +3,12 @@ project(ExternalProjectTest NONE)
 
 include(ExternalProject)
 
+# Test ExternalProject, especially with checkouts from VCS
+
 find_package(CVS)
 find_package(Subversion)
 find_package(Git)
+find_package(Hg)
 
 option(ExternalProjectTest_USE_FOLDERS "Enable folder grouping in IDEs." ON)
 if(ExternalProjectTest_USE_FOLDERS)
@@ -22,33 +25,8 @@ set(binary_base "${base}/Build")
 set_property(DIRECTORY PROPERTY EP_BASE ${base})
 set_property(DIRECTORY PROPERTY EP_STEP_TARGETS configure build test)
 
-if(NOT DEFINED can_build_tutorial_step5)
-  set(can_build_tutorial_step5 1)
-
-  # Tutorial Step5 cannot build correctly using Visual Studio 6
-  # on Windows 98 if the path of its build tree exceeds 72
-  # characters in length... So don't attempt to build it
-  # in a long path on Win98:
-  #
-  if(CMAKE_SYSTEM STREQUAL "Windows-4.10")
-    string(LENGTH "${binary_base}/TutorialStep5-Local" n)
-    if(n GREATER 72)
-      set(can_build_tutorial_step5 0)
-    endif()
-  endif()
-
-  # The ExternalProject builds of Tutorial Step5 cannot be built
-  # correctly 2nd and later times in an in-source build...
-  # (because the CMakeCache.txt from the real in-source build of
-  # the Tests/Tutorial/Step5 directory gets copied when we do
-  # the "source directory copy" step... but it still refers to
-  # its original path which yields a configure error.) So:
-  #
-  if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
-    set(can_build_tutorial_step5 0)
-  endif()
-endif()
-
+add_custom_target(NonExternalProjectTarget
+  COMMAND ${CMAKE_COMMAND} -E echo NonExternalProjectTarget)
 
 # Empty projects that test all the known ExternalProject_Add argument key words:
 #
@@ -93,8 +71,9 @@ ExternalProject_Add(${proj}
   CVS_REPOSITORY ""
   CVS_MODULE ""
   CVS_TAG ""
-  DEPENDS "MinimalNoOpProject"
+  DEPENDS "MinimalNoOpProject" NonExternalProjectTarget
   DOWNLOAD_COMMAND ""
+  DOWNLOAD_NO_PROGRESS 1
   INSTALL_COMMAND ""
   PATCH_COMMAND ""
   STEP_TARGETS install update
@@ -110,142 +89,6 @@ ExternalProject_Add(${proj}
   UPDATE_COMMAND ""
 )
 set_property(TARGET ${proj} PROPERTY FOLDER "")
-
-
-# Local DIR:
-#
-if(can_build_tutorial_step5)
-  set(proj TutorialStep5-Local)
-  ExternalProject_Add(${proj}
-    URL "${CMAKE_CURRENT_SOURCE_DIR}/../Tutorial/Step5"
-    CMAKE_CACHE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
-    CMAKE_ARGS -G ${CMAKE_GENERATOR} <SOURCE_DIR>
-    TEST_BEFORE_INSTALL 1
-    LOG_INSTALL 1
-  )
-  set_property(TARGET ${proj} PROPERTY FOLDER "Local")
-  ExternalProject_Get_Property(${proj} install_dir)
-  set(TutorialStep5_install_dir ${install_dir})
-
-  set(proj TutorialStep5-Local-TestAfterInstall)
-  ExternalProject_Add(${proj}
-    URL "${CMAKE_CURRENT_SOURCE_DIR}/../Tutorial/Step5"
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR> -G ${CMAKE_GENERATOR} <SOURCE_DIR>
-    TEST_AFTER_INSTALL 1
-    LOG_TEST 1
-  )
-  set_property(TARGET ${proj} PROPERTY FOLDER "Local")
-endif()
-
-
-# Local TAR:
-#
-set(proj TutorialStep1-LocalTAR)
-ExternalProject_Add(${proj}
-  URL "${CMAKE_CURRENT_SOURCE_DIR}/Step1.tar"
-  URL_MD5 a87c5b47c0201c09ddfe1d5738fdb1e3
-  LIST_SEPARATOR ::
-  PATCH_COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/Step1Patch.cmake
-  CMAKE_GENERATOR "${CMAKE_GENERATOR}"
-  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
-             -DTEST_LIST:STRING=A::B::C
-  INSTALL_COMMAND ""
-  LOG_CONFIGURE 1
-)
-set_property(TARGET ${proj} PROPERTY FOLDER "Local/TAR")
-
-set(proj TutorialStep1-LocalNoDirTAR)
-ExternalProject_Add(${proj}
-  URL "${CMAKE_CURRENT_SOURCE_DIR}/Step1NoDir.tar"
-  URL_MD5 d09e3d370c5c908fa035c30939ee438e
-  LIST_SEPARATOR @@
-  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR> -G ${CMAKE_GENERATOR} <SOURCE_DIR>
-             -DTEST_LIST:STRING=1@@2@@3
-  INSTALL_COMMAND ""
-)
-set_property(TARGET ${proj} PROPERTY FOLDER "Local/TAR")
-ExternalProject_Add_Step(${proj} mypatch
-  COMMAND ${CMAKE_COMMAND} -E echo "This is a custom external project step."
-  COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/Step1Patch.cmake
-  WORKING_DIRECTORY <SOURCE_DIR>
-  DEPENDEES download
-  DEPENDERS configure
-  )
-
-
-# Local TGZ:
-#
-set(proj TutorialStep1-LocalTGZ)
-ExternalProject_Add(${proj}
-  URL "${CMAKE_CURRENT_SOURCE_DIR}/Step1.tgz"
-  URL_MD5 38c648e817339c356f6be00eeed79bd0
-  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR> -G ${CMAKE_GENERATOR} <SOURCE_DIR>
-  INSTALL_COMMAND ""
-  LOG_BUILD 1
-)
-set_property(TARGET ${proj} PROPERTY FOLDER "Local/TGZ")
-
-set(proj TutorialStep1-LocalNoDirTGZ)
-ExternalProject_Add(${proj}
-  URL "${CMAKE_CURRENT_SOURCE_DIR}/Step1NoDir.tgz"
-  URL_MD5 0b8182edcecdf40bf1c9d71d7d259f78
-  CMAKE_GENERATOR "${CMAKE_GENERATOR}"
-  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
-  INSTALL_COMMAND ""
-)
-set_property(TARGET ${proj} PROPERTY FOLDER "Local/TGZ")
-
-
-# Local BZ2:
-#
-# (The bz2 tests are here just to verify that the bz2 decompression is executed
-#  during a test suite run... The configure and build commands are set to
-#  nothing to make the test quicker. To make this more complete, I should add
-#  a diff between this and the TGZ source tree since that one does build...)
-#
-set(proj TutorialStep1-LocalBZ2)
-ExternalProject_Add(${proj}
-  URL "${CMAKE_CURRENT_SOURCE_DIR}/Step1.tar.bz2"
-  CONFIGURE_COMMAND ""
-  BUILD_COMMAND ""
-  INSTALL_COMMAND ""
-)
-set_property(TARGET ${proj} PROPERTY FOLDER "Local/BZ2")
-
-set(proj TutorialStep1-LocalNoDirBZ2)
-ExternalProject_Add(${proj}
-  URL "${CMAKE_CURRENT_SOURCE_DIR}/Step1NoDir.tar.bz2"
-  CONFIGURE_COMMAND ""
-  BUILD_COMMAND ""
-  INSTALL_COMMAND ""
-)
-set_property(TARGET ${proj} PROPERTY FOLDER "Local/BZ2")
-
-
-# Local ZIP:
-#
-# (The zip tests are here just to verify that the zip decompression is executed
-#  during a test suite run... The configure and build commands are set to
-#  nothing to make the test quicker. To make this more complete, I should add
-#  a diff between this and the TGZ source tree since that one does build...)
-#
-set(proj TutorialStep1-LocalZIP)
-ExternalProject_Add(${proj}
-  URL "${CMAKE_CURRENT_SOURCE_DIR}/Step1.zip"
-  CONFIGURE_COMMAND ""
-  BUILD_COMMAND ""
-  INSTALL_COMMAND ""
-)
-set_property(TARGET ${proj} PROPERTY FOLDER "Local/ZIP")
-
-set(proj TutorialStep1-LocalNoDirZIP)
-ExternalProject_Add(${proj}
-  URL "${CMAKE_CURRENT_SOURCE_DIR}/Step1NoDir.zip"
-  CONFIGURE_COMMAND ""
-  BUILD_COMMAND ""
-  INSTALL_COMMAND ""
-)
-set_property(TARGET ${proj} PROPERTY FOLDER "Local/ZIP")
 
 
 # CVS-based tests:
@@ -279,6 +122,18 @@ if(do_cvs_tests)
   )
   set_property(TARGET ${proj}
     PROPERTY FOLDER "SetupRepos/Local/Deeply/Nested/For/Testing")
+
+  # The MSYS cvs tool interprets "c:/" as a "machine:" name for SSH.
+  # Detect the MSYS cvs and convert the repo path to an MSYS path.
+  if(WIN32)
+    if(EXISTS "${CVS_EXECUTABLE}")
+      file(STRINGS "${CVS_EXECUTABLE}" cvs_is_msys LIMIT_COUNT 1 REGEX "[Mm][Ss][Yy][Ss]")
+      if(cvs_is_msys)
+        message(STATUS "'${CVS_EXECUTABLE}' is from MSYS (contains '${cvs_is_msys}')")
+        string(REGEX REPLACE "^([A-Za-z]):" "/\\1" local_cvs_repo "${local_cvs_repo}")
+      endif()
+    endif()
+  endif()
 
   # CVS by date stamp:
   #
@@ -321,10 +176,6 @@ if(do_cvs_tests)
     INSTALL_COMMAND ""
     DEPENDS "SetupLocalCVSRepository"
     DEPENDS "EmptyNoOpProject"
-    DEPENDS "TutorialStep1-LocalTAR"
-    DEPENDS "TutorialStep1-LocalNoDirTAR"
-    DEPENDS "TutorialStep1-LocalTGZ"
-    DEPENDS "TutorialStep1-LocalNoDirTGZ"
     DEPENDS "TutorialStep1-CVS-20090626"
     DEPENDS "TutorialStep1-CVS-testtag1"
   )
@@ -497,6 +348,159 @@ if(do_git_tests)
     LOG_UPDATE 1
   )
   set_property(TARGET ${proj} PROPERTY FOLDER "GIT")
+
+  # git by explicit branch/tag with empty submodule list
+  #
+  set(proj TutorialStep1-GIT-bytag-withsubmodules)
+  ExternalProject_Add(${proj}
+    GIT_REPOSITORY "${local_git_repo}"
+    GIT_TAG "origin/master"
+    GIT_SUBMODULES ""
+    UPDATE_COMMAND ""
+    CMAKE_GENERATOR "${CMAKE_GENERATOR}"
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+    INSTALL_COMMAND ""
+    DEPENDS "SetupLocalGITRepository"
+  )
+  set_property(TARGET ${proj} PROPERTY FOLDER "GIT")
+
+  # Unzip/untar the git repository in our source folder so that other
+  # projects below may use it to test git args of ExternalProject_Add
+  #
+  set(proj SetupLocalGITRepositoryWithSubmodules)
+  ExternalProject_Add(${proj}
+    SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/LocalRepositories/GIT-with-submodules
+    URL ${CMAKE_CURRENT_SOURCE_DIR}/gitrepo-sub.tgz
+    BUILD_COMMAND ""
+    CONFIGURE_COMMAND "${GIT_EXECUTABLE}" --version
+    INSTALL_COMMAND ""
+  )
+  set_property(TARGET ${proj}
+    PROPERTY FOLDER "SetupRepos/Local/Deeply/Nested/For/Testing")
+
+  set(local_git_repo "../../LocalRepositories/GIT-with-submodules")
+
+  set(proj TS1-GIT-no-GIT_SUBMODULES)
+  ExternalProject_Add(${proj}
+    GIT_REPOSITORY "${local_git_repo}"
+    CMAKE_GENERATOR "${CMAKE_GENERATOR}"
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+               -DWITH_m1:BOOL=ON
+               -DWITH_m2:BOOL=ON
+    BUILD_COMMAND ""
+    INSTALL_COMMAND ""
+    DEPENDS "SetupLocalGITRepository"
+            "SetupLocalGITRepositoryWithSubmodules"
+  )
+  set_property(TARGET ${proj} PROPERTY FOLDER "GIT")
+
+  set(proj TS1-GIT-empty-GIT_SUBMODULES)
+  ExternalProject_Add(${proj}
+    GIT_REPOSITORY "${local_git_repo}"
+    GIT_SUBMODULES ""
+    CMAKE_GENERATOR "${CMAKE_GENERATOR}"
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+               -DWITH_m1:BOOL=ON
+               -DWITH_m2:BOOL=ON
+    BUILD_COMMAND ""
+    INSTALL_COMMAND ""
+    DEPENDS "SetupLocalGITRepository"
+            "SetupLocalGITRepositoryWithSubmodules"
+  )
+  set_property(TARGET ${proj} PROPERTY FOLDER "GIT")
+
+  set(proj TS1-GIT-some-GIT_SUBMODULES)
+  ExternalProject_Add(${proj}
+    GIT_REPOSITORY "${local_git_repo}"
+    GIT_SUBMODULES "m/m1"
+    CMAKE_GENERATOR "${CMAKE_GENERATOR}"
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+               -DWITH_m1:BOOL=ON
+               -DWITH_m2:BOOL=OFF
+    BUILD_COMMAND ""
+    INSTALL_COMMAND ""
+    DEPENDS "SetupLocalGITRepository"
+            "SetupLocalGITRepositoryWithSubmodules"
+  )
+  set_property(TARGET ${proj} PROPERTY FOLDER "GIT")
+
+endif()
+
+set(do_hg_tests 0)
+
+if(HG_EXECUTABLE)
+  set(do_hg_tests 1)
+endif()
+
+if(do_hg_tests AND NOT UNIX)
+  if("${HG_EXECUTABLE}" MATCHES "cygwin")
+    message(STATUS "No ExternalProject hg tests with cygwin hg outside cygwin!")
+    set(do_hg_tests 0)
+  endif()
+endif()
+
+if(do_hg_tests)
+  set(local_hg_repo "../../LocalRepositories/HG")
+
+  # Unzip/untar the hg repository in our source folder so that other
+  # projects below may use it to test hg args of ExternalProject_Add
+  #
+  set(proj SetupLocalHGRepository)
+  ExternalProject_Add(${proj}
+    SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/LocalRepositories/HG
+    URL ${CMAKE_CURRENT_SOURCE_DIR}/hgrepo.tgz
+    BUILD_COMMAND ""
+    CONFIGURE_COMMAND "${HG_EXECUTABLE}" --version
+    INSTALL_COMMAND ""
+  )
+  set_property(TARGET ${proj}
+    PROPERTY FOLDER "SetupRepos/Local/Deeply/Nested/For/Testing")
+
+
+  # hg by commit id:
+  #
+  set(proj TutorialStep1-HG-byhash)
+  ExternalProject_Add(${proj}
+    HG_REPOSITORY "${local_hg_repo}"
+    HG_TAG dd2ce38a6b8a
+    UPDATE_COMMAND ""
+    CMAKE_GENERATOR "${CMAKE_GENERATOR}"
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+    INSTALL_COMMAND ""
+    DEPENDS "SetupLocalHGRepository"
+  )
+  set_property(TARGET ${proj} PROPERTY FOLDER "HG")
+
+  # hg by explicit branch/tag name:
+  #
+  set(proj TutorialStep1-HG-bytag)
+  ExternalProject_Add(${proj}
+    HG_REPOSITORY "${local_hg_repo}"
+    HG_TAG "default"
+    UPDATE_COMMAND ""
+    CMAKE_GENERATOR "${CMAKE_GENERATOR}"
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+    INSTALL_COMMAND ""
+    DEPENDS "SetupLocalHGRepository"
+  )
+  set_property(TARGET ${proj} PROPERTY FOLDER "HG")
+
+  # Live hg / tip (no HG_TAG):
+  #
+  # Mercurial 2.1 does not distinguish an empty pull from a failed pull,
+  # so do not run the test with that version.
+  if(NOT "${HG_VERSION_STRING}" STREQUAL "2.1")
+    set(proj TutorialStep1-HG-tip)
+    ExternalProject_Add(${proj}
+      HG_REPOSITORY "${local_hg_repo}"
+      CMAKE_GENERATOR "${CMAKE_GENERATOR}"
+      CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+      INSTALL_COMMAND ""
+      DEPENDS "SetupLocalHGRepository"
+      LOG_UPDATE 1
+    )
+    set_property(TARGET ${proj} PROPERTY FOLDER "HG")
+  endif()
 endif()
 
 
@@ -510,29 +514,6 @@ enable_testing()
 #
 # BuildTree tests:
 #
-if(can_build_tutorial_step5)
-  add_test(TutorialStep5-Local-BuildTreeTest
-    "${binary_base}/TutorialStep5-Local/Tutorial" 42)
-  set_property(TEST TutorialStep5-Local-BuildTreeTest
-    APPEND PROPERTY LABELS Step5 BuildTree)
-endif()
-
-add_test(TutorialStep1-LocalTAR-BuildTreeTest
-  "${binary_base}/TutorialStep1-LocalTAR/EP-Tutorial" 36)
-set_property(TEST TutorialStep1-LocalTAR-BuildTreeTest
-  APPEND PROPERTY LABELS TAR)
-
-add_test(TutorialStep1-LocalNoDirTAR-BuildTreeTest
-  "${binary_base}/TutorialStep1-LocalNoDirTAR/EP-Tutorial" 25)
-
-add_test(TutorialStep1-LocalTGZ-BuildTreeTest
-  "${binary_base}/TutorialStep1-LocalTGZ/Tutorial" 16)
-set_property(TEST TutorialStep1-LocalTGZ-BuildTreeTest
-  APPEND PROPERTY LABELS TGZ)
-
-add_test(TutorialStep1-LocalNoDirTGZ-BuildTreeTest
-  "${binary_base}/TutorialStep1-LocalNoDirTGZ/Tutorial" 9)
-
 if(do_cvs_tests)
   add_test(TutorialStep1-CVS-20090626-BuildTreeTest
     "${binary_base}/TutorialStep1-CVS-20090626/Tutorial" 4)
@@ -555,19 +536,54 @@ if(do_svn_tests)
     "${binary_base}/TutorialStep1-SVN-trunk/Tutorial" 98)
 endif()
 
+if(do_git_tests)
+  add_test(TutorialStep1-GIT-byhash
+    "${binary_base}/TutorialStep1-GIT-byhash/Tutorial" 100)
 
-# InstallTree tests:
-#
-if(can_build_tutorial_step5)
-  add_test(TutorialStep5-InstallTreeTest
-    "${TutorialStep5_install_dir}/bin/Tutorial" 49)
-  set_property(TEST TutorialStep5-InstallTreeTest
-    APPEND PROPERTY LABELS Step5 InstallTree)
+  add_test(TutorialStep1-GIT-bytag
+    "${binary_base}/TutorialStep1-GIT-bytag/Tutorial" 99)
+
+  add_test(TutorialStep1-GIT-master
+    "${binary_base}/TutorialStep1-GIT-master/Tutorial" 98)
 endif()
 
 
-message(STATUS "can_build_tutorial_step5='${can_build_tutorial_step5}'")
 message(STATUS "do_cvs_tests='${do_cvs_tests}'")
 message(STATUS "do_svn_tests='${do_svn_tests}'")
-message(STATUS "do_git_tests='${do_git_tests}'")
-message(STATUS "GIT_EXECUTABLE='${GIT_EXECUTABLE}'")
+message(STATUS "do_git_tests='${do_git_tests}' GIT_EXECUTABLE='${GIT_EXECUTABLE}'")
+message(STATUS "do_hg_tests='${do_hg_tests}'   HG_EXECUTABLE='${HG_EXECUTABLE}'")
+
+
+# Test if log works when the first arguments of *_COMMAND is "COMMAND".
+set(proj ExternalProject-no-log)
+set(download_cmd "")
+set(patch_cmd "")
+set(update_cmd "")
+set(configure_cmd "")
+set(build_cmd "")
+set(install_cmd "")
+
+ExternalProject_Add(${proj}
+  DOWNLOAD_COMMAND "${download_cmd}" COMMAND "${CMAKE_COMMAND}" -E echo "download"
+  PATCH_COMMAND "${patch_cmd}" COMMAND "${CMAKE_COMMAND}" -E echo "patch"
+  UPDATE_COMMAND "${update_cmd}" COMMAND "${CMAKE_COMMAND}" -E echo "update"
+  CONFIGURE_COMMAND "${configure_cmd}" COMMAND "${CMAKE_COMMAND}" -E echo "configure"
+  BUILD_COMMAND "${build_cmd}" COMMAND "${CMAKE_COMMAND}" -E echo "build"
+  INSTALL_COMMAND "${install_cmd}" COMMAND "${CMAKE_COMMAND}" -E echo "install"
+  )
+
+set(proj ExternalProject-log)
+ExternalProject_Add(${proj}
+  DOWNLOAD_COMMAND "${download_cmd}" COMMAND "${CMAKE_COMMAND}" -E echo "download"
+  PATCH_COMMAND "${patch_cmd}" COMMAND "${CMAKE_COMMAND}" -E echo "patch"
+  UPDATE_COMMAND "${update_cmd}" COMMAND "${CMAKE_COMMAND}" -E echo "update"
+  CONFIGURE_COMMAND "${configure_cmd}" COMMAND "${CMAKE_COMMAND}" -E echo "configure"
+  BUILD_COMMAND "${build_cmd}" COMMAND "${CMAKE_COMMAND}" -E echo "build"
+  INSTALL_COMMAND "${install_cmd}" COMMAND "${CMAKE_COMMAND}" -E echo "install"
+  LOG_DOWNLOAD 1
+  LOG_PATCH 1
+  LOG_UPDATE 1
+  LOG_CONFIGURE 1
+  LOG_BUILD 1
+  LOG_INSTALL 1
+  )

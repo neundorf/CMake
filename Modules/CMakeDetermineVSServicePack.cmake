@@ -1,31 +1,35 @@
-# - Includes a public function for assisting users in trying to determine the
-# Visual Studio service pack in use.
+#.rst:
+# CMakeDetermineVSServicePack
+# ---------------------------
 #
-# Sets the passed in variable to one of the following values or an empty
-# string if unknown.
-#    vc80
-#    vc80sp1
-#    vc90
-#    vc90sp1
-#    vc100
-#    vc100sp1
+# Deprecated.  Do not use.
 #
-# Usage:
-# ===========================
+# The functionality of this module has been superseded by the
+# :variable:`CMAKE_<LANG>_COMPILER_VERSION` variable that contains
+# the compiler version number.
 #
-#    if(MSVC)
-#       include(CMakeDetermineVSServicePack)
-#       DetermineVSServicePack( my_service_pack )
+# Determine the Visual Studio service pack of the 'cl' in use.
 #
-#       if( my_service_pack )
-#           message(STATUS "Detected: ${my_service_pack}")
-#       endif()
-#    endif()
+# Usage::
 #
-# ===========================
+#   if(MSVC)
+#     include(CMakeDetermineVSServicePack)
+#     DetermineVSServicePack( my_service_pack )
+#     if( my_service_pack )
+#       message(STATUS "Detected: ${my_service_pack}")
+#     endif()
+#   endif()
+#
+# Function DetermineVSServicePack sets the given variable to one of the
+# following values or an empty string if unknown::
+#
+#   vc80, vc80sp1
+#   vc90, vc90sp1
+#   vc100, vc100sp1
+#   vc110, vc110sp1, vc110sp2, vc110sp3, vc110sp4
 
 #=============================================================================
-# Copyright 2009-2011 Kitware, Inc.
+# Copyright 2009-2013 Kitware, Inc.
 # Copyright 2009-2010 Philip Lowman <philip@yhbt.com>
 # Copyright 2010-2011 Aaron C. meadows <cmake@shadowguarddev.com>
 #
@@ -38,6 +42,13 @@
 #=============================================================================
 # (To distribute this file outside of CMake, substitute the full
 #  License text for the above reference.)
+
+if(NOT CMAKE_MINIMUM_REQUIRED_VERSION VERSION_LESS 2.8.8)
+  message(DEPRECATION
+    "This module is deprecated and should not be used.  "
+    "Use the CMAKE_<LANG>_COMPILER_VERSION variable instead."
+    )
+endif()
 
 # [INTERNAL]
 # Please do not call this function directly
@@ -54,6 +65,16 @@ function(_DetermineVSServicePackFromCompiler _OUT_VAR _cl_version)
        set(_version "vc100")
    elseif(${_cl_version} VERSION_EQUAL "16.00.40219.01")
        set(_version "vc100sp1")
+   elseif(${_cl_version} VERSION_EQUAL "17.00.50727.1")
+       set(_version "vc110")
+   elseif(${_cl_version} VERSION_EQUAL "17.00.51106.1")
+       set(_version "vc110sp1")
+   elseif(${_cl_version} VERSION_EQUAL "17.00.60315.1")
+       set(_version "vc110sp2")
+   elseif(${_cl_version} VERSION_EQUAL "17.00.60610.1")
+       set(_version "vc110sp3")
+   elseif(${_cl_version} VERSION_EQUAL "17.00.61030")
+       set(_version "vc110sp4")
    else()
        set(_version "")
    endif()
@@ -72,27 +93,14 @@ function(_DetermineVSServicePack_FastCheckVersionWithCompiler _SUCCESS_VAR  _VER
           OUTPUT_QUIET
         )
 
-      string(REGEX MATCH "Compiler Version [0-9]+.[0-9]+.[0-9]+.[0-9]+"
-        _cl_version "${_output}")
-
-      if(_cl_version)
-        string(REGEX MATCHALL "[0-9]+"
-            _cl_version_list "${_cl_version}")
-        list(GET _cl_version_list 0 _major)
-        list(GET _cl_version_list 1 _minor)
-        list(GET _cl_version_list 2 _patch)
-        list(GET _cl_version_list 3 _tweak)
-
+      if(_output MATCHES "Compiler Version (([0-9]+)\\.([0-9]+)\\.([0-9]+)(\\.([0-9]+))?)")
+        set(_cl_version ${CMAKE_MATCH_1})
+        set(_major ${CMAKE_MATCH_2})
+        set(_minor ${CMAKE_MATCH_3})
         if("${_major}${_minor}" STREQUAL "${MSVC_VERSION}")
-          set(_cl_version ${_major}.${_minor}.${_patch}.${_tweak})
-        else()
-          unset(_cl_version)
-        endif()
-      endif()
-
-      if(_cl_version)
           set(${_SUCCESS_VAR} true PARENT_SCOPE)
           set(${_VERSION_VAR} ${_cl_version} PARENT_SCOPE)
+        endif()
       endif()
     endif()
 endfunction()
@@ -113,20 +121,9 @@ function(_DetermineVSServicePack_CheckVersionWithTryCompile _SUCCESS_VAR  _VERSI
 
     file(REMOVE "${CMAKE_BINARY_DIR}/return0.cc")
 
-    string(REGEX MATCH "Compiler Version [0-9]+.[0-9]+.[0-9]+.[0-9]+"
-      _cl_version "${_output}")
-
-    if(_cl_version)
-      string(REGEX MATCHALL "[0-9]+"
-          _cl_version_list "${_cl_version}")
-
-      list(GET _cl_version_list 0 _major)
-      list(GET _cl_version_list 1 _minor)
-      list(GET _cl_version_list 2 _patch)
-      list(GET _cl_version_list 3 _tweak)
-
+    if(_output MATCHES "Compiler Version (([0-9]+)\\.([0-9]+)\\.([0-9]+)(\\.([0-9]+))?)")
       set(${_SUCCESS_VAR} true PARENT_SCOPE)
-      set(${_VERSION_VAR} ${_major}.${_minor}.${_patch}.${_tweak} PARENT_SCOPE)
+      set(${_VERSION_VAR} "${CMAKE_MATCH_1}" PARENT_SCOPE)
     endif()
 endfunction()
 

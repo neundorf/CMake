@@ -76,9 +76,7 @@ const std::string cmNewLineStyle::GetCharacters() const
       return "\n";
     case CRLF:
       return "\r\n";
-    default:
-      ;
-    };
+    }
   return "";
 }
 

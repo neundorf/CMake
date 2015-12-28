@@ -19,7 +19,10 @@
 
 #include <cmsys/RegularExpression.hxx>
 
+#include <deque>
+
 class cmMakefile;
+class cmXMLWriter;
 
 /** \class cmCTestBuildHandler
  * \brief A class that handles ctest -S invocations
@@ -54,7 +57,7 @@ private:
   // and retVal is return value or exception.
   int RunMakeCommand(const char* command,
     int* retVal, const char* dir, int timeout,
-    std::ofstream& ofs);
+    std::ostream& ofs);
 
   enum {
     b_REGULAR_LINE,
@@ -84,11 +87,10 @@ private:
   };
 
   // generate the XML output
-  void GenerateXMLHeader(std::ostream& os);
-  void GenerateXMLLaunched(std::ostream& os);
-  void GenerateXMLLogScraped(std::ostream& os);
-  void GenerateXMLFooter(std::ostream& os, double elapsed_build_time);
-  void GenerateXMLLaunchedFragment(std::ostream& os, const char* fname);
+  void GenerateXMLHeader(cmXMLWriter& xml);
+  void GenerateXMLLaunched(cmXMLWriter& xml);
+  void GenerateXMLLogScraped(cmXMLWriter& xml);
+  void GenerateXMLFooter(cmXMLWriter& xml, double elapsed_build_time);
   bool IsLaunchedErrorFile(const char* fname);
   bool IsLaunchedWarningFile(const char* fname);
 
@@ -97,10 +99,10 @@ private:
   double                  StartBuildTime;
   double                  EndBuildTime;
 
-  std::vector<cmStdString> CustomErrorMatches;
-  std::vector<cmStdString> CustomErrorExceptions;
-  std::vector<cmStdString> CustomWarningMatches;
-  std::vector<cmStdString> CustomWarningExceptions;
+  std::vector<std::string> CustomErrorMatches;
+  std::vector<std::string> CustomErrorExceptions;
+  std::vector<std::string> CustomWarningMatches;
+  std::vector<std::string> CustomWarningExceptions;
   std::vector<std::string> ReallyCustomWarningMatches;
   std::vector<std::string> ReallyCustomWarningExceptions;
   std::vector<cmCTestCompileErrorWarningRex> ErrorWarningFileLineRegex;
@@ -113,7 +115,7 @@ private:
   typedef std::deque<char> t_BuildProcessingQueueType;
 
   void ProcessBuffer(const char* data, int length, size_t& tick,
-    size_t tick_len, std::ofstream& ofs, t_BuildProcessingQueueType* queue);
+    size_t tick_len, std::ostream& ofs, t_BuildProcessingQueueType* queue);
   int ProcessSingleLine(const char* data);
 
   t_BuildProcessingQueueType            BuildProcessingQueue;
@@ -121,8 +123,8 @@ private:
   size_t                                BuildOutputLogSize;
   std::vector<char>                     CurrentProcessingLine;
 
-  cmStdString                           SimplifySourceDir;
-  cmStdString                           SimplifyBuildDir;
+  std::string                           SimplifySourceDir;
+  std::string                           SimplifyBuildDir;
   size_t                                OutputLineCounter;
   typedef std::vector<cmCTestBuildErrorWarning> t_ErrorsAndWarningsVector;
   t_ErrorsAndWarningsVector             ErrorsAndWarnings;
@@ -130,7 +132,7 @@ private:
   size_t                                PostContextCount;
   size_t                                MaxPreContext;
   size_t                                MaxPostContext;
-  std::deque<cmStdString>               PreContext;
+  std::deque<std::string>               PreContext;
 
   int                                   TotalErrors;
   int                                   TotalWarnings;

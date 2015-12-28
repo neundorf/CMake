@@ -15,6 +15,8 @@
 #include "cmLocalGenerator.h"
 #include "cmMakefile.h"
 #include "cmSystemTools.h"
+#include "cmAlgorithms.h"
+#include <cmsys/FStream.hxx>
 
 #include <ctype.h> // isspace
 
@@ -36,7 +38,7 @@ cmDependsC::cmDependsC()
 //----------------------------------------------------------------------------
 cmDependsC::cmDependsC(cmLocalGenerator* lg,
                    const char* targetDir,
-                   const char* lang,
+                   const std::string& lang,
                    const std::map<std::string, DependencyVector>* validDeps)
 : cmDepends(lg, targetDir)
 , ValidDeps(validDeps)
@@ -53,14 +55,14 @@ cmDependsC::cmDependsC(cmLocalGenerator* lg,
   std::string scanRegexVar = "CMAKE_";
   scanRegexVar += lang;
   scanRegexVar += "_INCLUDE_REGEX_SCAN";
-  if(const char* sr = mf->GetDefinition(scanRegexVar.c_str()))
+  if(const char* sr = mf->GetDefinition(scanRegexVar))
     {
     scanRegex = sr;
     }
   std::string complainRegexVar = "CMAKE_";
   complainRegexVar += lang;
   complainRegexVar += "_INCLUDE_REGEX_COMPLAIN";
-  if(const char* cr = mf->GetDefinition(complainRegexVar.c_str()))
+  if(const char* cr = mf->GetDefinition(complainRegexVar))
     {
     complainRegex = cr;
     }
@@ -89,29 +91,29 @@ cmDependsC::cmDependsC(cmLocalGenerator* lg,
 cmDependsC::~cmDependsC()
 {
   this->WriteCacheFile();
-
-  for (std::map<cmStdString, cmIncludeLines*>::iterator it=
-         this->FileCache.begin(); it!=this->FileCache.end(); ++it)
-    {
-    delete it->second;
-    }
+  cmDeleteAll(this->FileCache);
 }
 
 //----------------------------------------------------------------------------
-bool cmDependsC::WriteDependencies(const char *src, const char *obj,
-  std::ostream& makeDepends, std::ostream& internalDepends)
+bool cmDependsC::WriteDependencies(const std::set<std::string>& sources,
+                                   const std::string& obj,
+                                   std::ostream& makeDepends,
+                                   std::ostream& internalDepends)
 {
   // Make sure this is a scanning instance.
-  if(!src || src[0] == '\0')
+  if(sources.empty() || sources.begin()->empty())
     {
     cmSystemTools::Error("Cannot scan dependencies without a source file.");
     return false;
     }
-  if(!obj || obj[0] == '\0')
+  if(obj.empty())
     {
     cmSystemTools::Error("Cannot scan dependencies without an object file.");
     return false;
     }
+
+  std::set<std::string> dependencies;
+  bool haveDeps = false;
 
   if (this->ValidDeps != 0)
     {
@@ -119,171 +121,171 @@ bool cmDependsC::WriteDependencies(const char *src, const char *obj,
                                                     this->ValidDeps->find(obj);
     if (tmpIt!= this->ValidDeps->end())
       {
-      // Write the dependencies to the output stream.  Makefile rules
-      // written by the original local generator for this directory
-      // convert the dependencies to paths relative to the home output
-      // directory.  We must do the same here.
-      internalDepends << obj << std::endl;
-      for(DependencyVector::const_iterator i=tmpIt->second.begin();
-         i != tmpIt->second.end(); ++i)
-        {
-        makeDepends << obj << ": " <<
-           this->LocalGenerator->Convert(i->c_str(),
-                                         cmLocalGenerator::HOME_OUTPUT,
-                                         cmLocalGenerator::MAKEFILE)
-           << std::endl;
-        internalDepends << " " << i->c_str() << std::endl;
-        }
-      makeDepends << std::endl;
-      return true;
+      dependencies.insert(tmpIt->second.begin(), tmpIt->second.end());
+      haveDeps = true;
       }
     }
 
-  // Walk the dependency graph starting with the source file.
-  bool first = true;
-  UnscannedEntry root;
-  root.FileName = src;
-  this->Unscanned.push(root);
-  this->Encountered.clear();
-  this->Encountered.insert(src);
-  std::set<cmStdString> dependencies;
-  std::set<cmStdString> scanned;
-
-  // Use reserve to allocate enough memory for tempPathStr
-  // so that during the loops no memory is allocated or freed
-  std::string tempPathStr;
-  tempPathStr.reserve(4*1024);
-
-  while(!this->Unscanned.empty())
+  if (!haveDeps)
     {
-    // Get the next file to scan.
-    UnscannedEntry current = this->Unscanned.front();
-    this->Unscanned.pop();
+    // Walk the dependency graph starting with the source file.
+    int srcFiles = (int)sources.size();
+    this->Encountered.clear();
 
-    // If not a full path, find the file in the include path.
-    std::string fullName;
-    if(first || cmSystemTools::FileIsFullPath(current.FileName.c_str()))
+    for(std::set<std::string>::const_iterator srcIt = sources.begin();
+        srcIt != sources.end(); ++srcIt)
       {
-      if(cmSystemTools::FileExists(current.FileName.c_str(), true))
-        {
-        fullName = current.FileName;
-        }
+      UnscannedEntry root;
+      root.FileName = *srcIt;
+      this->Unscanned.push(root);
+      this->Encountered.insert(*srcIt);
       }
-    else if(!current.QuotedLocation.empty() &&
-            cmSystemTools::FileExists(current.QuotedLocation.c_str(), true))
-      {
-      // The include statement producing this entry was a double-quote
-      // include and the included file is present in the directory of
-      // the source containing the include statement.
-      fullName = current.QuotedLocation;
-      }
-    else
-      {
-      std::map<cmStdString, cmStdString>::iterator
-        headerLocationIt=this->HeaderLocationCache.find(current.FileName);
-      if (headerLocationIt!=this->HeaderLocationCache.end())
-        {
-        fullName=headerLocationIt->second;
-        }
-      else for(std::vector<std::string>::const_iterator i =
-            this->IncludePath.begin(); i != this->IncludePath.end(); ++i)
-        {
-        // Construct the name of the file as if it were in the current
-        // include directory.  Avoid using a leading "./".
 
-        tempPathStr = "";
-        if((*i) == ".")
-          {
-          tempPathStr += current.FileName;
-          }
-        else
-          {
-          tempPathStr += *i;
-          tempPathStr+="/";
-          tempPathStr+=current.FileName;
-          }
+    std::set<std::string> scanned;
 
-        // Look for the file in this location.
-        if(cmSystemTools::FileExists(tempPathStr.c_str(), true))
+    // Use reserve to allocate enough memory for tempPathStr
+    // so that during the loops no memory is allocated or freed
+    std::string tempPathStr;
+    tempPathStr.reserve(4*1024);
+
+    while(!this->Unscanned.empty())
+      {
+      // Get the next file to scan.
+      UnscannedEntry current = this->Unscanned.front();
+      this->Unscanned.pop();
+
+      // If not a full path, find the file in the include path.
+      std::string fullName;
+      if((srcFiles>0)
+         || cmSystemTools::FileIsFullPath(current.FileName.c_str()))
+        {
+        if(cmSystemTools::FileExists(current.FileName.c_str(), true))
           {
-          fullName = tempPathStr;
-          HeaderLocationCache[current.FileName]=fullName;
-          break;
+          fullName = current.FileName;
           }
         }
-      }
-
-    // Complain if the file cannot be found and matches the complain
-    // regex.
-    if(fullName.empty() &&
-       this->IncludeRegexComplain.find(current.FileName.c_str()))
-      {
-      cmSystemTools::Error("Cannot find file \"",
-                           current.FileName.c_str(), "\".");
-      return false;
-      }
-
-    // Scan the file if it was found and has not been scanned already.
-    if(!fullName.empty() && (scanned.find(fullName) == scanned.end()))
-      {
-      // Record scanned files.
-      scanned.insert(fullName);
-
-      // Check whether this file is already in the cache
-      std::map<cmStdString, cmIncludeLines*>::iterator fileIt=
-        this->FileCache.find(fullName);
-      if (fileIt!=this->FileCache.end())
+      else if(!current.QuotedLocation.empty() &&
+              cmSystemTools::FileExists(current.QuotedLocation.c_str(), true))
         {
-        fileIt->second->Used=true;
-        dependencies.insert(fullName);
-        for (std::vector<UnscannedEntry>::const_iterator incIt=
-               fileIt->second->UnscannedEntries.begin();
-             incIt!=fileIt->second->UnscannedEntries.end(); ++incIt)
-          {
-          if (this->Encountered.find(incIt->FileName) ==
-              this->Encountered.end())
-            {
-            this->Encountered.insert(incIt->FileName);
-            this->Unscanned.push(*incIt);
-            }
-          }
+        // The include statement producing this entry was a double-quote
+        // include and the included file is present in the directory of
+        // the source containing the include statement.
+        fullName = current.QuotedLocation;
         }
       else
         {
-
-        // Try to scan the file.  Just leave it out if we cannot find
-        // it.
-        std::ifstream fin(fullName.c_str());
-        if(fin)
+        std::map<std::string, std::string>::iterator
+          headerLocationIt=this->HeaderLocationCache.find(current.FileName);
+        if (headerLocationIt!=this->HeaderLocationCache.end())
           {
-          // Add this file as a dependency.
-          dependencies.insert(fullName);
+          fullName=headerLocationIt->second;
+          }
+        else for(std::vector<std::string>::const_iterator i =
+              this->IncludePath.begin(); i != this->IncludePath.end(); ++i)
+          {
+          // Construct the name of the file as if it were in the current
+          // include directory.  Avoid using a leading "./".
 
-          // Scan this file for new dependencies.  Pass the directory
-          // containing the file to handle double-quote includes.
-          std::string dir = cmSystemTools::GetFilenamePath(fullName);
-          this->Scan(fin, dir.c_str(), fullName);
+          tempPathStr =
+            cmSystemTools::CollapseCombinedPath(*i, current.FileName);
+
+          // Look for the file in this location.
+          if(cmSystemTools::FileExists(tempPathStr.c_str(), true))
+            {
+            fullName = tempPathStr;
+            HeaderLocationCache[current.FileName]=fullName;
+            break;
+            }
           }
         }
-      }
 
-    first = false;
+      // Complain if the file cannot be found and matches the complain
+      // regex.
+      if(fullName.empty() &&
+        this->IncludeRegexComplain.find(current.FileName.c_str()))
+        {
+        cmSystemTools::Error("Cannot find file \"",
+                            current.FileName.c_str(), "\".");
+        return false;
+        }
+
+      // Scan the file if it was found and has not been scanned already.
+      if(!fullName.empty() && (scanned.find(fullName) == scanned.end()))
+        {
+        // Record scanned files.
+        scanned.insert(fullName);
+
+        // Check whether this file is already in the cache
+        std::map<std::string, cmIncludeLines*>::iterator fileIt=
+          this->FileCache.find(fullName);
+        if (fileIt!=this->FileCache.end())
+          {
+          fileIt->second->Used=true;
+          dependencies.insert(fullName);
+          for (std::vector<UnscannedEntry>::const_iterator incIt=
+                fileIt->second->UnscannedEntries.begin();
+              incIt!=fileIt->second->UnscannedEntries.end(); ++incIt)
+            {
+            if (this->Encountered.find(incIt->FileName) ==
+                this->Encountered.end())
+              {
+              this->Encountered.insert(incIt->FileName);
+              this->Unscanned.push(*incIt);
+              }
+            }
+          }
+        else
+          {
+
+          // Try to scan the file.  Just leave it out if we cannot find
+          // it.
+          cmsys::ifstream fin(fullName.c_str());
+          if(fin)
+            {
+            cmsys::FStream::BOM bom = cmsys::FStream::ReadBOM(fin);
+            if(bom == cmsys::FStream::BOM_None ||
+               bom == cmsys::FStream::BOM_UTF8)
+              {
+              // Add this file as a dependency.
+              dependencies.insert(fullName);
+
+              // Scan this file for new dependencies.  Pass the directory
+              // containing the file to handle double-quote includes.
+              std::string dir = cmSystemTools::GetFilenamePath(fullName);
+              this->Scan(fin, dir.c_str(), fullName);
+              }
+            else
+              {
+              // Skip file with encoding we do not implement.
+              }
+            }
+          }
+        }
+
+      srcFiles--;
+      }
     }
 
   // Write the dependencies to the output stream.  Makefile rules
   // written by the original local generator for this directory
   // convert the dependencies to paths relative to the home output
   // directory.  We must do the same here.
-  internalDepends << obj << std::endl;
-  for(std::set<cmStdString>::iterator i=dependencies.begin();
+  std::string obj_i =
+    this->LocalGenerator->Convert(obj, cmLocalGenerator::HOME_OUTPUT);
+  std::string obj_m =
+    this->LocalGenerator->ConvertToOutputFormat(obj_i,
+                                                cmLocalGenerator::MAKERULE);
+  internalDepends << obj_i << std::endl;
+
+  for(std::set<std::string>::const_iterator i=dependencies.begin();
       i != dependencies.end(); ++i)
     {
-    makeDepends << obj << ": " <<
-      this->LocalGenerator->Convert(i->c_str(),
+    makeDepends << obj_m << ": " <<
+      this->LocalGenerator->Convert(*i,
                                     cmLocalGenerator::HOME_OUTPUT,
-                                    cmLocalGenerator::MAKEFILE)
+                                    cmLocalGenerator::MAKERULE)
                 << std::endl;
-    internalDepends << " " << i->c_str() << std::endl;
+    internalDepends << " " << *i << std::endl;
     }
   makeDepends << std::endl;
 
@@ -293,11 +295,11 @@ bool cmDependsC::WriteDependencies(const char *src, const char *obj,
 //----------------------------------------------------------------------------
 void cmDependsC::ReadCacheFile()
 {
-  if(this->CacheFileName.size() == 0)
+  if(this->CacheFileName.empty())
     {
     return;
     }
-  std::ifstream fin(this->CacheFileName.c_str());
+  cmsys::ifstream fin(this->CacheFileName.c_str());
   if(!fin)
     {
     return;
@@ -382,11 +384,11 @@ void cmDependsC::ReadCacheFile()
 //----------------------------------------------------------------------------
 void cmDependsC::WriteCacheFile() const
 {
-  if(this->CacheFileName.size() == 0)
+  if(this->CacheFileName.empty())
     {
     return;
     }
-  std::ofstream cacheOut(this->CacheFileName.c_str());
+  cmsys::ofstream cacheOut(this->CacheFileName.c_str());
   if(!cacheOut)
     {
     return;
@@ -397,7 +399,7 @@ void cmDependsC::WriteCacheFile() const
   cacheOut << this->IncludeRegexComplainString << "\n\n";
   cacheOut << this->IncludeRegexTransformString << "\n\n";
 
-  for (std::map<cmStdString, cmIncludeLines*>::const_iterator fileIt=
+  for (std::map<std::string, cmIncludeLines*>::const_iterator fileIt=
          this->FileCache.begin();
        fileIt!=this->FileCache.end(); ++fileIt)
     {
@@ -426,7 +428,7 @@ void cmDependsC::WriteCacheFile() const
 
 //----------------------------------------------------------------------------
 void cmDependsC::Scan(std::istream& is, const char* directory,
-  const cmStdString& fullName)
+  const std::string& fullName)
 {
   cmIncludeLines* newCacheEntry=new cmIncludeLines;
   newCacheEntry->Used=true;
@@ -455,9 +457,8 @@ void cmDependsC::Scan(std::istream& is, const char* directory,
         // This was a double-quoted include with a relative path.  We
         // must check for the file in the directory containing the
         // file we are scanning.
-        entry.QuotedLocation = directory;
-        entry.QuotedLocation += "/";
-        entry.QuotedLocation += entry.FileName;
+        entry.QuotedLocation =
+          cmSystemTools::CollapseCombinedPath(directory, entry.FileName);
         }
 
       // Queue the file if it has not yet been encountered and it

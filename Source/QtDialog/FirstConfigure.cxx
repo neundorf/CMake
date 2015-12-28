@@ -15,17 +15,22 @@ StartCompilerSetup::StartCompilerSetup(QWidget* p)
   l->addWidget(new QLabel(tr("Specify the generator for this project")));
   this->GeneratorOptions = new QComboBox(this);
   l->addWidget(this->GeneratorOptions);
+
+  // Add the ability to specify toolset (-T parameter)
+  ToolsetFrame = CreateToolsetWidgets();
+  l->addWidget(ToolsetFrame);
+
   l->addSpacing(6);
 
-  this->CompilerSetupOptions[0] = new QRadioButton("Use default native compilers", this);
-  this->CompilerSetupOptions[1] = new QRadioButton("Specify native compilers", this);
-  this->CompilerSetupOptions[2] = new QRadioButton("Specify toolchain file for cross-compiling", this);
-  this->CompilerSetupOptions[3] = new QRadioButton("Specify options for cross-compiling", this);
+  this->CompilerSetupOptions[0] = new QRadioButton(tr("Use default native compilers"), this);
+  this->CompilerSetupOptions[1] = new QRadioButton(tr("Specify native compilers"), this);
+  this->CompilerSetupOptions[2] = new QRadioButton(tr("Specify toolchain file for cross-compiling"), this);
+  this->CompilerSetupOptions[3] = new QRadioButton(tr("Specify options for cross-compiling"), this);
   l->addWidget(this->CompilerSetupOptions[0]);
   l->addWidget(this->CompilerSetupOptions[1]);
   l->addWidget(this->CompilerSetupOptions[2]);
   l->addWidget(this->CompilerSetupOptions[3]);
-  
+
   this->CompilerSetupOptions[0]->setChecked(true);
 
   QObject::connect(this->CompilerSetupOptions[0], SIGNAL(toggled(bool)),
@@ -36,18 +41,52 @@ StartCompilerSetup::StartCompilerSetup(QWidget* p)
                    this, SLOT(onSelectionChanged(bool)));
   QObject::connect(this->CompilerSetupOptions[3], SIGNAL(toggled(bool)),
                    this, SLOT(onSelectionChanged(bool)));
+  QObject::connect(GeneratorOptions,
+                   SIGNAL(currentIndexChanged(QString const&)),
+                   this, SLOT(onGeneratorChanged(QString const&)));
+}
+
+QFrame* StartCompilerSetup::CreateToolsetWidgets()
+{
+  QFrame* frame = new QFrame(this);
+  QVBoxLayout* l = new QVBoxLayout(frame);
+  l->setContentsMargins(0, 0, 0, 0);
+
+  ToolsetLabel = new QLabel(tr("Optional toolset to use (-T parameter)"));
+  l->addWidget(ToolsetLabel);
+
+  Toolset = new QLineEdit(frame);
+  l->addWidget(Toolset);
+
+  return frame;
 }
 
 StartCompilerSetup::~StartCompilerSetup()
 {
 }
 
-void StartCompilerSetup::setGenerators(const QStringList& gens)
+void StartCompilerSetup::setGenerators(
+  std::vector<cmake::GeneratorInfo> const& gens)
 {
   this->GeneratorOptions->clear();
-  this->GeneratorOptions->addItems(gens);
-};
-    
+
+  QStringList generator_list;
+
+  std::vector<cmake::GeneratorInfo>::const_iterator it;
+  for (it = gens.begin(); it != gens.end(); ++it)
+    {
+    generator_list.append(QString::fromLocal8Bit(it->name.c_str()));
+
+    if (it->supportsToolset)
+      {
+      this->GeneratorsSupportingToolset.append(
+        QString::fromLocal8Bit(it->name.c_str()));
+      }
+    }
+
+  this->GeneratorOptions->addItems(generator_list);
+}
+
 void StartCompilerSetup::setCurrentGenerator(const QString& gen)
 {
   int idx = this->GeneratorOptions->findText(gen);
@@ -60,6 +99,11 @@ void StartCompilerSetup::setCurrentGenerator(const QString& gen)
 QString StartCompilerSetup::getGenerator() const
 {
   return this->GeneratorOptions->currentText();
+};
+
+QString StartCompilerSetup::getToolset() const
+{
+  return this->Toolset->text();
 };
 
 bool StartCompilerSetup::defaultSetup() const
@@ -86,6 +130,18 @@ void StartCompilerSetup::onSelectionChanged(bool on)
 {
   if(on)
     selectionChanged();
+}
+
+void StartCompilerSetup::onGeneratorChanged(QString const& name)
+{
+  if (GeneratorsSupportingToolset.contains(name))
+    {
+    ToolsetFrame->show();
+    }
+  else
+    {
+    ToolsetFrame->hide();
+    }
 }
 
 int StartCompilerSetup::nextId() const
@@ -159,9 +215,9 @@ CrossCompilerSetup::CrossCompilerSetup(QWidget* p)
 
   // fill in combo boxes
   QStringList modes;
-  modes << "Search in Target Root, then native system";
-  modes << "Search only in Target Root";
-  modes << "Search only in native system";
+  modes << tr("Search in Target Root, then native system");
+  modes << tr("Search only in Target Root");
+  modes << tr("Search only in native system");
   crossProgramMode->addItems(modes);
   crossLibraryMode->addItems(modes);
   crossIncludeMode->addItems(modes);
@@ -237,7 +293,7 @@ void CrossCompilerSetup::setProcessor(const QString& t)
 {
   this->systemProcessor->setText(t);
 }
-    
+
 QString CrossCompilerSetup::getFindRoot() const
 {
   return this->crossFindRoot->text();
@@ -313,10 +369,10 @@ FirstConfigure::FirstConfigure()
 
   this->mNativeCompilerSetupPage = new NativeCompilerSetup(this);
   this->setPage(NativeSetup, this->mNativeCompilerSetupPage);
-  
+
   this->mCrossCompilerSetupPage = new CrossCompilerSetup(this);
   this->setPage(CrossSetup, this->mCrossCompilerSetupPage);
-  
+
   this->mToolchainCompilerSetupPage = new ToolchainCompilerSetup(this);
   this->setPage(ToolchainSetup, this->mToolchainCompilerSetupPage);
 }
@@ -325,7 +381,8 @@ FirstConfigure::~FirstConfigure()
 {
 }
 
-void FirstConfigure::setGenerators(const QStringList& gens)
+void FirstConfigure::setGenerators(
+  std::vector<cmake::GeneratorInfo> const& gens)
 {
   this->mStartCompilerSetupPage->setGenerators(gens);
 }
@@ -333,6 +390,11 @@ void FirstConfigure::setGenerators(const QStringList& gens)
 QString FirstConfigure::getGenerator() const
 {
   return this->mStartCompilerSetupPage->getGenerator();
+}
+
+QString FirstConfigure::getToolset() const
+{
+  return this->mStartCompilerSetupPage->getToolset();
 }
 
 void FirstConfigure::loadFromSettings()
@@ -370,14 +432,14 @@ void FirstConfigure::loadFromSettings()
 void FirstConfigure::saveToSettings()
 {
   QSettings settings;
-  
+
   // save generator
   settings.beginGroup("Settings/StartPath");
   QString lastGen = this->mStartCompilerSetupPage->getGenerator();
   settings.setValue("LastGenerator", lastGen);
   settings.endGroup();
 
-  // save compiler setup 
+  // save compiler setup
   settings.beginGroup("Settings/Compiler");
   settings.setValue("CCompiler", this->mNativeCompilerSetupPage->getCCompiler());
   settings.setValue("CXXCompiler", this->mNativeCompilerSetupPage->getCXXCompiler());
@@ -419,7 +481,7 @@ bool FirstConfigure::crossCompilerToolChainFile() const
 {
   return this->mStartCompilerSetupPage->crossCompilerToolChainFile();
 }
-  
+
 QString FirstConfigure::getCrossCompilerToolChainFile() const
 {
   return this->mToolchainCompilerSetupPage->toolchainFile();

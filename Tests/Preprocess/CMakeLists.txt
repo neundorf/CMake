@@ -9,37 +9,31 @@ project(Preprocess)
 # to work with each tool and documents those known to not work.
 if("${CMAKE_GENERATOR}" MATCHES "Xcode")
   set(PP_XCODE 1)
-endif("${CMAKE_GENERATOR}" MATCHES "Xcode")
+endif()
 if("${CMAKE_GENERATOR}" MATCHES "Visual Studio 6")
   set(PP_VS6 1)
-endif("${CMAKE_GENERATOR}" MATCHES "Visual Studio 6")
+endif()
 if("${CMAKE_GENERATOR}" MATCHES "Unix Makefiles")
   set(PP_UMAKE 1)
-endif("${CMAKE_GENERATOR}" MATCHES "Unix Makefiles")
+endif()
 if("${CMAKE_GENERATOR}" MATCHES "NMake Makefiles")
   set(PP_NMAKE 1)
-endif("${CMAKE_GENERATOR}" MATCHES "NMake Makefiles")
+endif()
 if("${CMAKE_GENERATOR}" MATCHES "MinGW Makefiles")
   set(PP_MINGW 1)
-endif("${CMAKE_GENERATOR}" MATCHES "MinGW Makefiles")
+endif()
 if("${CMAKE_GENERATOR}" MATCHES "Borland Makefiles")
   set(PP_BORLAND 1)
-endif("${CMAKE_GENERATOR}" MATCHES "Borland Makefiles")
+endif()
 if("${CMAKE_GENERATOR}" MATCHES "Watcom WMake")
   set(PP_WATCOM 1)
-endif("${CMAKE_GENERATOR}" MATCHES "Watcom WMake")
+endif()
 if("${CMAKE_GENERATOR}" MATCHES "Visual Studio 7$")
   set(PP_VS70 1)
-endif("${CMAKE_GENERATOR}" MATCHES "Visual Studio 7$")
+endif()
 if("${CMAKE_GENERATOR}" MATCHES "Visual Studio")
   set(PP_VS 1)
-endif("${CMAKE_GENERATOR}" MATCHES "Visual Studio")
-if("${CMAKE_GENERATOR}" MATCHES "Visual Studio 10")
-  set(PP_VS100 1)
-endif("${CMAKE_GENERATOR}" MATCHES "Visual Studio 10")
-if("${CMAKE_GENERATOR}" MATCHES "Visual Studio 11")
-  set(PP_VS110 1)
-endif("${CMAKE_GENERATOR}" MATCHES "Visual Studio 11")
+endif()
 
 # Some tests below check the PP_* variables set above.  They are meant
 # to test the case that the build tool is at fault.  Other tests below
@@ -55,7 +49,7 @@ endif("${CMAKE_GENERATOR}" MATCHES "Visual Studio 11")
 # must not have it escaped inside the configured header.
 set(STRING_EXTRA "")
 
-if(NOT BORLAND AND NOT PP_VS70 AND NOT PP_VS100 AND NOT PP_VS110)
+if(NOT BORLAND AND NOT PP_VS70)
   # Borland, VS70 IDE: ;
   # The Borland compiler will simply not accept a non-escaped semicolon
   # on the command line.  If it is escaped \; then the escape character
@@ -63,7 +57,6 @@ if(NOT BORLAND AND NOT PP_VS70 AND NOT PP_VS100 AND NOT PP_VS110)
   #
   # The VS 7.0 IDE separates definitions on semicolons and commas with
   # no regard for quotes.  Fortunately VS 7.1 and above are okay.
-  # VS 10 seems to also not like semicolons
   set(SEMICOLON "\;")
 endif()
 
@@ -80,8 +73,8 @@ if(NOT PP_VS6)
     # trouble passing to other tools, and the compiler may be directly
     # invoked from the command line.
     set(STRING_EXTRA "${STRING_EXTRA} ")
-  endif(NOT PP_BORLAND AND NOT PP_WATCOM)
-endif(NOT PP_VS6)
+  endif()
+endif()
 
 if(NOT PP_VS)
   # VS: ,
@@ -89,21 +82,21 @@ if(NOT PP_VS)
   # The comma-separated list of PreprocessorDefinitions in the project
   # file seems to be parsed before the content of entries is examined.
   set(STRING_EXTRA "${STRING_EXTRA},")
-endif(NOT PP_VS)
+endif()
 
 if(NOT PP_MINGW)
   # MinGW: &
   # When inside -D"FOO=\"a & b\"" MinGW make wants -D"FOO=\"a "&" b\""
   # but it does not like quoted ampersand elsewhere.
   set(STRING_EXTRA "${STRING_EXTRA}&")
-endif(NOT PP_MINGW)
+endif()
 
 if(NOT PP_MINGW)
   # MinGW: |
   # When inside -D"FOO=\"a | b\"" MinGW make wants -D"FOO=\"a "|" b\""
   # but it does not like quoted pipe elsewhere.
   set(STRING_EXTRA "${STRING_EXTRA}|")
-endif(NOT PP_MINGW)
+endif()
 
 if(NOT PP_BORLAND AND NOT PP_MINGW AND NOT PP_NMAKE)
   # Borland, NMake, MinGW: ^
@@ -111,17 +104,17 @@ if(NOT PP_BORLAND AND NOT PP_MINGW AND NOT PP_NMAKE)
   # but do not like quoted carrot elsewhere.  In NMake the non-quoted
   # syntax works when the flags are not in a make variable.
   set(STRING_EXTRA "${STRING_EXTRA}^")
-endif(NOT PP_BORLAND AND NOT PP_MINGW AND NOT PP_NMAKE)
+endif()
 
 if(NOT PP_BORLAND AND NOT PP_MINGW AND NOT PP_NMAKE)
   # Borland, MinGW: < >
   # Angle-brackets have funny behavior that is hard to escape.
   set(STRING_EXTRA "${STRING_EXTRA}<>")
-endif(NOT PP_BORLAND AND NOT PP_MINGW AND NOT PP_NMAKE)
+endif()
 
 set(EXPR_OP1 "/")
 if((NOT MSVC OR PP_NMAKE) AND
-   NOT "${CMAKE_C_COMPILER_ID}" MATCHES "^(Intel)$")
+   NOT CMAKE_C_COMPILER_ID STREQUAL "Intel")
   # MSVC cl, Intel icl: %
   # When the cl compiler is invoked from the command line then % must
   # be written %% (to distinguish from %ENV% syntax).  However cl does
@@ -141,6 +134,15 @@ if((NOT MSVC OR PP_NMAKE) AND
   set(EXPR_OP1 "%")
 endif()
 
+# XL: )(
+# The XL compiler cannot pass unbalanced parens correctly to a tool
+# it launches internally.
+if(CMAKE_C_COMPILER_ID STREQUAL "XL")
+  set(STRING_EXTRA "${STRING_EXTRA}()")
+else()
+  set(STRING_EXTRA "${STRING_EXTRA})(")
+endif()
+
 # General: \"
 # Make tools do not reliably accept \\\" syntax:
 #  - MinGW and MSYS make tools crash with \\\"
@@ -148,9 +150,12 @@ endif()
 #    or $(BACKSLASH)\" where BACKSLASH is a variable set to \\
 #  - VS IDE gets confused about the bounds of the definition value \\\"
 #  - NMake is okay with just \\\"
-if(PP_NMAKE OR PP_UMAKE)
+#  - The XL compiler does not re-escape \\\" when launching an
+#    internal tool to do preprocessing .
+if((PP_NMAKE OR PP_UMAKE) AND
+    NOT CMAKE_C_COMPILER_ID STREQUAL "XL")
   set(STRING_EXTRA "${STRING_EXTRA}\\\"")
-endif(PP_NMAKE OR PP_UMAKE)
+endif()
 
 # General: #
 # MSVC will not accept a # in the value of a string definition on the
@@ -167,7 +172,7 @@ endif(PP_NMAKE OR PP_UMAKE)
 # support it and it is not an operator it is not worthwhile.
 
 # Compose the final test string.
-set(STRING_VALUE "hello`~!@$*)(_+-=}{][:'.?/${STRING_EXTRA}world")
+set(STRING_VALUE "hello`~!@$*_+-=}{][:'.?/${STRING_EXTRA}world")
 
 #-----------------------------------------------------------------------------
 # Function-style macro command-line support:
@@ -187,7 +192,7 @@ set(EXPR "x*y+!(x==(y+1*2))*f(x${EXPR_OP1}2)")
 if(NOT WATCOM)
   # Watcom does not support - or / because it parses them as options.
   set(EXPR "${EXPR} + y/x-x")
-endif(NOT WATCOM)
+endif()
 
 #-----------------------------------------------------------------------------
 
@@ -199,11 +204,11 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DPREPROCESS_DEBUG")
 # Inform the test if it built from Xcode or VS6 IDE.
 if(PP_XCODE)
   set(PREPROCESS_XCODE 1)
-endif(PP_XCODE)
+endif()
 if(PP_VS6)
   set(PREPROCESS_VS6 1)
   set(VS6 _vs6)
-endif(PP_VS6)
+endif()
 
 # Test old-style definitions.
 add_definitions(-DOLD_DEF -DOLD_EXPR=2)
@@ -213,7 +218,7 @@ set(OLD_DEFS_EXPECTED "OLD_DEF;OLD_EXPR=2")
 get_property(OLD_DEFS DIRECTORY PROPERTY COMPILE_DEFINITIONS)
 if(NOT "${OLD_DEFS}" STREQUAL "${OLD_DEFS_EXPECTED}")
   message(SEND_ERROR "add_definitions not converted to directory property!")
-endif(NOT "${OLD_DEFS}" STREQUAL "${OLD_DEFS_EXPECTED}")
+endif()
 
 add_executable(Preprocess preprocess.c preprocess${VS6}.cxx)
 
@@ -234,14 +239,14 @@ foreach(c "" "_DEBUG" "_RELEASE")
     SOURCE preprocess.c preprocess${VS6}.cxx
     PROPERTY COMPILE_DEFINITIONS${c} "FILE_DEF${c}"
     )
-endforeach(c)
+endforeach()
 
 # Add definitions with values.
 if(NOT PREPROCESS_VS6)
   # The path might have spaces, which VS6 does not support.
   set(DEF_TARGET_PATH "TARGET_PATH=\"${TARGET_PATH}\"")
   set(DEF_FILE_PATH "FILE_PATH=\"${FILE_PATH}\"")
-endif(NOT PREPROCESS_VS6)
+endif()
 set_property(
   TARGET Preprocess
   APPEND PROPERTY COMPILE_DEFINITIONS
@@ -257,13 +262,26 @@ set_property(
   ${DEF_FILE_PATH}
   )
 
+# Try reading and writing the property value to ensure the string is
+# preserved.
+get_property(defs1 TARGET Preprocess PROPERTY COMPILE_DEFINITIONS)
+set_property(TARGET Preprocess PROPERTY COMPILE_DEFINITIONS "${defs1}")
+get_property(defs2 TARGET Preprocess PROPERTY COMPILE_DEFINITIONS)
+if(NOT "x${defs1}" STREQUAL "x${defs2}")
+  message(FATAL_ERROR "get/set/get COMPILE_DEFINITIONS round trip failed.  "
+    "First get:\n"
+    "  ${defs1}\n"
+    "Second get:\n"
+    "  ${defs2}")
+endif()
+
 # Helper target for running test manually in build tree.
 add_custom_target(drive COMMAND Preprocess)
 
 # Configure the header file with the desired string value.
 if(SEMICOLON)
   set(STRING_VALUE "${STRING_VALUE};")
-endif(SEMICOLON)
+endif()
 configure_file(${Preprocess_SOURCE_DIR}/preprocess.h.in
                ${Preprocess_BINARY_DIR}/preprocess.h)
 include_directories(${Preprocess_BINARY_DIR})

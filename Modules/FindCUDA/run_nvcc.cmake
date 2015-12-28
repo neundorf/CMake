@@ -62,6 +62,7 @@ set(cmake_dependency_file "@cmake_dependency_file@") # path
 set(CUDA_make2cmake "@CUDA_make2cmake@") # path
 set(CUDA_parse_cubin "@CUDA_parse_cubin@") # path
 set(build_cubin @build_cubin@) # bool
+set(CUDA_HOST_COMPILER "@CUDA_HOST_COMPILER@") # path
 # We won't actually use these variables for now, but we need to set this, in
 # order to force this file to be run again if it changes.
 set(generated_file_path "@generated_file_path@") # path
@@ -74,6 +75,7 @@ set(CUDA_NVCC_FLAGS @CUDA_NVCC_FLAGS@ ;; @CUDA_WRAP_OPTION_NVCC_FLAGS@) # list
 set(nvcc_flags @nvcc_flags@) # list
 set(CUDA_NVCC_INCLUDE_ARGS "@CUDA_NVCC_INCLUDE_ARGS@") # list (needs to be in quotes to handle spaces properly).
 set(format_flag "@format_flag@") # string
+set(cuda_language_flag @cuda_language_flag@) # list
 
 if(build_cubin AND NOT generated_cubin_file)
   message(FATAL_ERROR "You must specify generated_cubin_file on the command line")
@@ -102,8 +104,15 @@ endif()
 # Add the build specific configuration flags
 list(APPEND CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS_${build_configuration}})
 
-if(DEFINED CCBIN)
-  set(CCBIN -ccbin "${CCBIN}")
+# Any -ccbin existing in CUDA_NVCC_FLAGS gets highest priority
+list( FIND CUDA_NVCC_FLAGS "-ccbin" ccbin_found0 )
+list( FIND CUDA_NVCC_FLAGS "--compiler-bindir" ccbin_found1 )
+if( ccbin_found0 LESS 0 AND ccbin_found1 LESS 0 AND CUDA_HOST_COMPILER )
+  if (CUDA_HOST_COMPILER STREQUAL "$(VCInstallDir)bin" AND DEFINED CCBIN)
+    set(CCBIN -ccbin "${CCBIN}")
+  else()
+    set(CCBIN -ccbin "${CUDA_HOST_COMPILER}")
+  endif()
 endif()
 
 # cuda_execute_process - Executes a command with optional command echo and status message.
@@ -118,7 +127,7 @@ endif()
 # and other return variables are present after executing the process.
 macro(cuda_execute_process status command)
   set(_command ${command})
-  if(NOT _command STREQUAL "COMMAND")
+  if(NOT "x${_command}" STREQUAL "xCOMMAND")
     message(FATAL_ERROR "Malformed call to cuda_execute_process.  Missing COMMAND as second argument. (command = ${command})")
   endif()
   if(verbose)
@@ -139,7 +148,7 @@ macro(cuda_execute_process status command)
     endforeach()
     # Echo the command
     execute_process(COMMAND ${CMAKE_COMMAND} -E echo ${cuda_execute_process_string})
-  endif(verbose)
+  endif()
   # Run the command
   execute_process(COMMAND ${ARGN} RESULT_VARIABLE CUDA_result )
 endmacro()
@@ -230,6 +239,7 @@ cuda_execute_process(
   "Generating ${generated_file}"
   COMMAND "${CUDA_NVCC_EXECUTABLE}"
   "${source_file}"
+  ${cuda_language_flag}
   ${format_flag} -o "${generated_file}"
   ${CCBIN}
   ${nvcc_flags}
@@ -277,4 +287,4 @@ if( build_cubin )
     -P "${CUDA_parse_cubin}"
     )
 
-endif( build_cubin )
+endif()

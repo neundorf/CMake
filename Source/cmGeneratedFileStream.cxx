@@ -31,7 +31,7 @@ cmGeneratedFileStream::cmGeneratedFileStream(const char* name, bool quiet):
   // Check if the file opened.
   if(!*this && !quiet)
     {
-    cmSystemTools::Error("Cannot open file for write: ", 
+    cmSystemTools::Error("Cannot open file for write: ",
                          this->TempName.c_str());
     cmSystemTools::ReportLastSystemError("");
     }
@@ -58,7 +58,7 @@ cmGeneratedFileStream::Open(const char* name, bool quiet, bool binaryFlag)
   // Open the temporary output file.
   if ( binaryFlag )
     {
-    this->Stream::open(this->TempName.c_str(), 
+    this->Stream::open(this->TempName.c_str(),
                        std::ios::out | std::ios::binary);
     }
   else
@@ -69,7 +69,7 @@ cmGeneratedFileStream::Open(const char* name, bool quiet, bool binaryFlag)
   // Check if the file opened.
   if(!*this && !quiet)
     {
-    cmSystemTools::Error("Cannot open file for write: ", 
+    cmSystemTools::Error("Cannot open file for write: ",
                          this->TempName.c_str());
     cmSystemTools::ReportLastSystemError("");
     }
@@ -152,7 +152,7 @@ void cmGeneratedFileStreamBase::Open(const char* name)
 #endif
 
   // Make sure the temporary file that will be used is not present.
-  cmSystemTools::RemoveFile(this->TempName.c_str());
+  cmSystemTools::RemoveFile(this->TempName);
 
   std::string dir = cmSystemTools::GetFilenamePath(this->TempName);
   cmSystemTools::MakeDirectory(dir.c_str());
@@ -174,7 +174,7 @@ bool cmGeneratedFileStreamBase::Close()
   if(!this->Name.empty() &&
     this->Okay &&
     (!this->CopyIfDifferent ||
-     cmSystemTools::FilesDiffer(this->TempName.c_str(), resname.c_str())))
+     cmSystemTools::FilesDiffer(this->TempName, resname)))
     {
     // The destination is to be replaced.  Rename the temporary to the
     // destination atomically.
@@ -185,7 +185,7 @@ bool cmGeneratedFileStreamBase::Close()
         {
         this->RenameFile(gzname.c_str(), resname.c_str());
         }
-      cmSystemTools::RemoveFile(gzname.c_str());
+      cmSystemTools::RemoveFile(gzname);
       }
     else
       {
@@ -198,7 +198,7 @@ bool cmGeneratedFileStreamBase::Close()
   // Else, the destination was not replaced.
   //
   // Always delete the temporary file. We never want it to stay around.
-  cmSystemTools::RemoveFile(this->TempName.c_str());
+  cmSystemTools::RemoveFile(this->TempName);
 
   return replaced;
 }
@@ -213,7 +213,7 @@ int cmGeneratedFileStreamBase::CompressFile(const char* oldname,
     {
     return 0;
     }
-  FILE* ifs = fopen(oldname, "r");
+  FILE* ifs = cmsys::SystemTools::Fopen(oldname, "r");
   if ( !ifs )
     {
     return 0;
@@ -249,12 +249,7 @@ int cmGeneratedFileStreamBase::RenameFile(const char* oldname,
 }
 
 //----------------------------------------------------------------------------
-void cmGeneratedFileStream::SetName(const char* fname)
+void cmGeneratedFileStream::SetName(const std::string& fname)
 {
-  if ( !fname )
-    {
-    this->Name = "";
-    return;
-    }
   this->Name = fname;
 }

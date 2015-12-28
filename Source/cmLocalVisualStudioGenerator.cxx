@@ -18,11 +18,10 @@
 #include "windows.h"
 
 //----------------------------------------------------------------------------
-cmLocalVisualStudioGenerator::cmLocalVisualStudioGenerator(VSVersion v)
+cmLocalVisualStudioGenerator
+::cmLocalVisualStudioGenerator(cmGlobalGenerator* gg, cmMakefile* mf)
+  : cmLocalGenerator(gg, mf)
 {
-  this->WindowsShell = true;
-  this->WindowsVSIDE = true;
-  this->Version = v;
 }
 
 //----------------------------------------------------------------------------
@@ -31,9 +30,58 @@ cmLocalVisualStudioGenerator::~cmLocalVisualStudioGenerator()
 }
 
 //----------------------------------------------------------------------------
+cmGlobalVisualStudioGenerator::VSVersion
+cmLocalVisualStudioGenerator::GetVersion() const
+{
+  cmGlobalVisualStudioGenerator* gg =
+    static_cast<cmGlobalVisualStudioGenerator*>(this->GlobalGenerator);
+  return gg->GetVersion();
+}
+
+//----------------------------------------------------------------------------
+void cmLocalVisualStudioGenerator::ComputeObjectFilenames(
+                        std::map<cmSourceFile const*, std::string>& mapping,
+                        cmGeneratorTarget const* gt)
+{
+  std::string dir_max = this->ComputeLongestObjectDirectory(gt);
+
+  // Count the number of object files with each name.  Note that
+  // windows file names are not case sensitive.
+  std::map<std::string, int> counts;
+
+  for(std::map<cmSourceFile const*, std::string>::iterator
+      si = mapping.begin(); si != mapping.end(); ++si)
+    {
+    cmSourceFile const* sf = si->first;
+    std::string objectNameLower = cmSystemTools::LowerCase(
+      cmSystemTools::GetFilenameWithoutLastExtension(sf->GetFullPath()));
+    objectNameLower += this->GlobalGenerator->GetLanguageOutputExtension(*sf);
+    counts[objectNameLower] += 1;
+    }
+
+  // For all source files producing duplicate names we need unique
+  // object name computation.
+
+  for(std::map<cmSourceFile const*, std::string>::iterator
+      si = mapping.begin(); si != mapping.end(); ++si)
+    {
+    cmSourceFile const* sf = si->first;
+    std::string objectName =
+      cmSystemTools::GetFilenameWithoutLastExtension(sf->GetFullPath());
+    objectName += this->GlobalGenerator->GetLanguageOutputExtension(*sf);
+    if(counts[cmSystemTools::LowerCase(objectName)] > 1)
+      {
+      const_cast<cmGeneratorTarget*>(gt)->AddExplicitObjectName(sf);
+      objectName = this->GetObjectFileNameWithoutTarget(*sf, dir_max);
+      }
+    si->second = objectName;
+    }
+}
+
+//----------------------------------------------------------------------------
 cmsys::auto_ptr<cmCustomCommand>
-cmLocalVisualStudioGenerator::MaybeCreateImplibDir(cmTarget& target,
-                                                   const char* config,
+cmLocalVisualStudioGenerator::MaybeCreateImplibDir(cmGeneratorTarget* target,
+                                                   const std::string& config,
                                                    bool isFortran)
 {
   cmsys::auto_ptr<cmCustomCommand> pcc;
@@ -41,117 +89,29 @@ cmLocalVisualStudioGenerator::MaybeCreateImplibDir(cmTarget& target,
   // If an executable exports symbols then VS wants to create an
   // import library but forgets to create the output directory.
   // The Intel Fortran plugin always forgets to the directory.
-  if(target.GetType() != cmTarget::EXECUTABLE &&
-     !(isFortran && target.GetType() == cmTarget::SHARED_LIBRARY))
+  if(target->GetType() != cmState::EXECUTABLE &&
+     !(isFortran && target->GetType() == cmState::SHARED_LIBRARY))
     { return pcc; }
-  std::string outDir = target.GetDirectory(config, false);
-  std::string impDir = target.GetDirectory(config, true);
+  std::string outDir = target->GetDirectory(config, false);
+  std::string impDir = target->GetDirectory(config, true);
   if(impDir == outDir) { return pcc; }
 
   // Add a pre-build event to create the directory.
   cmCustomCommandLine command;
-  command.push_back(this->Makefile->GetRequiredDefinition("CMAKE_COMMAND"));
+  command.push_back(cmSystemTools::GetCMakeCommand());
   command.push_back("-E");
   command.push_back("make_directory");
   command.push_back(impDir);
   std::vector<std::string> no_output;
+  std::vector<std::string> no_byproducts;
   std::vector<std::string> no_depends;
   cmCustomCommandLines commands;
   commands.push_back(command);
-  pcc.reset(new cmCustomCommand(0, no_output, no_depends, commands, 0, 0));
+  pcc.reset(new cmCustomCommand(0, no_output, no_byproducts,
+                                no_depends, commands, 0, 0));
   pcc->SetEscapeOldStyle(false);
   pcc->SetEscapeAllowMakeVars(true);
   return pcc;
-}
-
-//----------------------------------------------------------------------------
-bool cmLocalVisualStudioGenerator::SourceFileCompiles(const cmSourceFile* sf)
-{
-  // Identify the language of the source file.
-  if(const char* lang = this->GetSourceFileLanguage(*sf))
-    {
-    // Check whether this source will actually be compiled.
-    return (!sf->GetCustomCommand() &&
-            !sf->GetPropertyAsBool("HEADER_FILE_ONLY") &&
-            !sf->GetPropertyAsBool("EXTERNAL_OBJECT"));
-    }
-  else
-    {
-    // Unknown source file language.  Assume it will not be compiled.
-    return false;
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmLocalVisualStudioGenerator::CountObjectNames(
-    const std::vector<cmSourceGroup>& groups,
-    std::map<cmStdString, int>& counts)
-{
-  for(unsigned int i = 0; i < groups.size(); ++i)
-    {
-    cmSourceGroup sg = groups[i];
-    std::vector<const cmSourceFile*> const& srcs = sg.GetSourceFiles();
-    for(std::vector<const cmSourceFile*>::const_iterator s = srcs.begin();
-        s != srcs.end(); ++s)
-      {
-      const cmSourceFile* sf = *s;
-      if(this->SourceFileCompiles(sf))
-        {
-        std::string objectName = cmSystemTools::LowerCase(
-            cmSystemTools::GetFilenameWithoutLastExtension(
-              sf->GetFullPath()));
-        objectName += ".obj";
-        counts[objectName] += 1;
-        }
-      }
-    this->CountObjectNames(sg.GetGroupChildren(), counts);
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmLocalVisualStudioGenerator::InsertNeedObjectNames(
-   const std::vector<cmSourceGroup>& groups,
-    std::map<cmStdString, int>& count)
-{
-  for(unsigned int i = 0; i < groups.size(); ++i)
-    {
-    cmSourceGroup sg = groups[i];
-    std::vector<const cmSourceFile*> const& srcs = sg.GetSourceFiles();
-    for(std::vector<const cmSourceFile*>::const_iterator s = srcs.begin();
-        s != srcs.end(); ++s)
-      {
-      const cmSourceFile* sf = *s;
-      if(this->SourceFileCompiles(sf))
-        {
-        std::string objectName = cmSystemTools::LowerCase(
-           cmSystemTools::GetFilenameWithoutLastExtension(sf->GetFullPath()));
-        objectName += ".obj";
-        if(count[objectName] > 1)
-          {
-          this->NeedObjectName.insert(sf);
-          }
-        }
-      }
-    this->InsertNeedObjectNames(sg.GetGroupChildren(), count);
-    }
-}
-
-
-//----------------------------------------------------------------------------
-void cmLocalVisualStudioGenerator::ComputeObjectNameRequirements
-(std::vector<cmSourceGroup> const& sourceGroups)
-{
-  // Clear the current set of requirements.
-  this->NeedObjectName.clear();
-
-  // Count the number of object files with each name.  Note that
-  // windows file names are not case sensitive.
-  std::map<cmStdString, int> objectNameCounts;
-  this->CountObjectNames(sourceGroups, objectNameCounts);
-
-  // For all source files producing duplicate names we need unique
-  // object name computation.
-  this->InsertNeedObjectNames(sourceGroups, objectNameCounts);
 }
 
 //----------------------------------------------------------------------------
@@ -169,18 +129,15 @@ const char* cmLocalVisualStudioGenerator::GetReportErrorLabel() const
 //----------------------------------------------------------------------------
 std::string
 cmLocalVisualStudioGenerator
-::ConstructScript(cmCustomCommand const& cc,
-                  const char* configName,
-                  const char* newline_text)
+::ConstructScript(cmCustomCommandGenerator const& ccg,
+                  const std::string& newline_text)
 {
   bool useLocal = this->CustomCommandUseLocal();
-  const cmCustomCommandLines& commandLines = cc.GetCommandLines();
-  const char* workingDirectory = cc.GetWorkingDirectory();
-  cmCustomCommandGenerator ccg(cc, configName, this->Makefile);
-  RelativeRoot relativeRoot = workingDirectory? NONE : START_OUTPUT;
+  std::string workingDirectory = ccg.GetWorkingDirectory();
+  RelativeRoot relativeRoot = workingDirectory.empty()? START_OUTPUT : NONE;
 
   // Avoid leading or trailing newlines.
-  const char* newline = "";
+  std::string newline = "";
 
   // Line to check for error between commands.
   std::string check_error = newline_text;
@@ -205,7 +162,7 @@ cmLocalVisualStudioGenerator
     script += "setlocal";
     }
 
-  if(workingDirectory)
+  if(!workingDirectory.empty())
     {
     // Change the working directory.
     script += newline;
@@ -215,7 +172,7 @@ cmLocalVisualStudioGenerator
     script += check_error;
 
     // Change the working drive.
-    if(workingDirectory[0] && workingDirectory[1] == ':')
+    if(workingDirectory.size() > 1 && workingDirectory[1] == ':')
       {
       script += newline;
       newline = newline_text;

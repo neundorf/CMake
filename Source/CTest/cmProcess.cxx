@@ -39,7 +39,7 @@ void cmProcess::SetCommandArguments(std::vector<std::string> const& args)
 
 bool cmProcess::StartProcess()
 {
-  if(this->Command.size() == 0)
+  if(this->Command.empty())
     {
     return false;
     }
@@ -56,12 +56,13 @@ bool cmProcess::StartProcess()
   this->ProcessArgs.push_back(0); // null terminate the list
   this->Process = cmsysProcess_New();
   cmsysProcess_SetCommand(this->Process, &*this->ProcessArgs.begin());
-  if(this->WorkingDirectory.size())
+  if(!this->WorkingDirectory.empty())
     {
     cmsysProcess_SetWorkingDirectory(this->Process,
                                      this->WorkingDirectory.c_str());
     }
   cmsysProcess_SetTimeout(this->Process, this->Timeout);
+  cmsysProcess_SetOption(this->Process, cmsysProcess_Option_MergeOutput, 1);
   cmsysProcess_Execute(this->Process);
   return (cmsysProcess_GetState(this->Process)
           == cmsysProcess_State_Executing);
@@ -124,13 +125,9 @@ int cmProcess::GetNextOutputLine(std::string& line, double timeout)
   for(;;)
     {
     // Look for lines already buffered.
-    if(this->StdOut.GetLine(line))
+    if(this->Output.GetLine(line))
       {
       return cmsysProcess_Pipe_STDOUT;
-      }
-    else if(this->StdErr.GetLine(line))
-      {
-      return cmsysProcess_Pipe_STDERR;
       }
 
     // Check for more data from the process.
@@ -143,11 +140,7 @@ int cmProcess::GetNextOutputLine(std::string& line, double timeout)
       }
     else if(p == cmsysProcess_Pipe_STDOUT)
       {
-      this->StdOut.insert(this->StdOut.end(), data, data+length);
-      }
-    else if(p == cmsysProcess_Pipe_STDERR)
-      {
-      this->StdErr.insert(this->StdErr.end(), data, data+length);
+      this->Output.insert(this->Output.end(), data, data+length);
       }
     else // p == cmsysProcess_Pipe_None
       {
@@ -157,13 +150,9 @@ int cmProcess::GetNextOutputLine(std::string& line, double timeout)
     }
 
   // Look for partial last lines.
-  if(this->StdOut.GetLast(line))
+  if(this->Output.GetLast(line))
     {
     return cmsysProcess_Pipe_STDOUT;
-    }
-  else if(this->StdErr.GetLast(line))
-    {
-    return cmsysProcess_Pipe_STDERR;
     }
 
   // No more data.  Wait for process exit.
@@ -175,6 +164,14 @@ int cmProcess::GetNextOutputLine(std::string& line, double timeout)
   // Record exit information.
   this->ExitValue = cmsysProcess_GetExitValue(this->Process);
   this->TotalTime = cmSystemTools::GetTime() - this->StartTime;
+  // Because of a processor clock scew the runtime may become slightly
+  // negative. If someone changed the system clock while the process was
+  // running this may be even more. Make sure not to report a negative
+  // duration here.
+  if (this->TotalTime <= 0.0)
+    {
+    this->TotalTime = 0.0;
+    }
   //  std::cerr << "Time to run: " << this->TotalTime << "\n";
   return cmsysProcess_Pipe_None;
 }
@@ -196,12 +193,12 @@ int cmProcess::ReportStatus()
     {
     case cmsysProcess_State_Starting:
       {
-      std::cerr << "cmProcess: Never started " 
+      std::cerr << "cmProcess: Never started "
            << this->Command << " process.\n";
       } break;
     case cmsysProcess_State_Error:
       {
-      std::cerr << "cmProcess: Error executing " << this->Command 
+      std::cerr << "cmProcess: Error executing " << this->Command
                 << " process: "
                 << cmsysProcess_GetErrorString(this->Process)
                 << "\n";
@@ -241,19 +238,19 @@ int cmProcess::ReportStatus()
       } break;
     case cmsysProcess_State_Executing:
       {
-      std::cerr << "cmProcess: Never terminated " << 
+      std::cerr << "cmProcess: Never terminated " <<
         this->Command << " process.\n";
       } break;
     case cmsysProcess_State_Exited:
       {
       result = cmsysProcess_GetExitValue(this->Process);
-      std::cerr << "cmProcess: " << this->Command 
+      std::cerr << "cmProcess: " << this->Command
                 << " process exited with code "
                 << result << "\n";
       } break;
     case cmsysProcess_State_Expired:
       {
-      std::cerr << "cmProcess: killed " << this->Command 
+      std::cerr << "cmProcess: killed " << this->Command
                 << " process due to timeout.\n";
       } break;
     case cmsysProcess_State_Killed:

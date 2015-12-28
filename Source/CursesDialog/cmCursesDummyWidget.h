@@ -9,8 +9,8 @@
   implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   See the License for more information.
 ============================================================================*/
-#ifndef __cmCursesDummyWidget_h
-#define __cmCursesDummyWidget_h
+#ifndef cmCursesDummyWidget_h
+#define cmCursesDummyWidget_h
 
 #include "cmCursesWidget.h"
 
@@ -20,7 +20,7 @@ class cmCursesDummyWidget : public cmCursesWidget
 {
 public:
   cmCursesDummyWidget(int width, int height, int left, int top);
-  
+
   // Description:
   // Handle user input. Called by the container of this widget
   // when this widget has focus. Returns true if the input was
@@ -33,4 +33,4 @@ protected:
 
 };
 
-#endif // __cmCursesDummyWidget_h
+#endif // cmCursesDummyWidget_h

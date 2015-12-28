@@ -25,7 +25,7 @@ public:
   /**
    * This is a virtual constructor for the command.
    */
-  virtual cmCommand* Clone() 
+  virtual cmCommand* Clone()
     {
     return new cmReturnCommand;
     }
@@ -40,39 +40,13 @@ public:
   /**
    * This determines if the command is invoked when in script mode.
    */
-  virtual bool IsScriptable() { return true; }
+  virtual bool IsScriptable() const { return true; }
 
   /**
    * The name of the command as specified in CMakeList.txt.
    */
-  virtual const char* GetName() {return "return";}
-  
-  /**
-   * Succinct documentation.
-   */
-  virtual const char* GetTerseDocumentation() 
-    {
-    return "Return from a file, directory or function.";
-    }
-  
-  /**
-   * More documentation.
-   */
-  virtual const char* GetFullDocumentation()
-    {
-    return
-      "  return()\n"
-      "Returns from a file, directory or function. When this command is "
-      "encountered in an included file (via include() or find_package()), "
-      "it causes processing of the current file to stop and control is "
-      "returned to the including file. If it is encountered in a file which "
-      "is not included by another file, e.g. a CMakeLists.txt, control is "
-      "returned to the parent directory if there is one. "
-      "If return is called in a function, control is returned to the caller "
-      "of the function. Note that a macro "
-      "is not a function and does not handle return like a function does.";
-    }
-  
+  virtual std::string GetName() const {return "return";}
+
   cmTypeMacro(cmReturnCommand, cmCommand);
 };
 

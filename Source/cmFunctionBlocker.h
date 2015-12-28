@@ -17,11 +17,6 @@
 #include "cmListFileCache.h"
 class cmMakefile;
 
-/** \class cmFunctionBlocker
- * \brief A class that defines an interface for blocking cmake functions
- *
- * This is the superclass for any classes that need to block a cmake function
- */
 class cmFunctionBlocker
 {
 public:
@@ -34,7 +29,7 @@ public:
 
   /**
    * should this function blocker be removed, useful when one function adds a
-   * blocker and another must remove it 
+   * blocker and another must remove it
    */
   virtual bool ShouldRemove(const cmListFileFunction&,
                             cmMakefile&) {return false;}
@@ -44,7 +39,7 @@ public:
   /** Set/Get the context in which this blocker is created.  */
   void SetStartingContext(cmListFileContext const& lfc)
     { this->StartingContext = lfc; }
-  cmListFileContext const& GetStartingContext()
+  cmListFileContext const& GetStartingContext() const
     { return this->StartingContext; }
 private:
   cmListFileContext StartingContext;

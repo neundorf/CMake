@@ -1,3 +1,9 @@
+#.rst:
+# CTestScriptMode
+# ---------------
+#
+#
+#
 # This file is read by ctest in script mode (-S)
 
 #=============================================================================
@@ -14,7 +20,7 @@
 # (To distribute this file outside of CMake, substitute the full
 #  License text for the above reference.)
 
-# Determine the current system, so this information can be used 
+# Determine the current system, so this information can be used
 # in ctest scripts
 include(CMakeDetermineSystem)
 

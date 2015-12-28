@@ -40,36 +40,12 @@ public:
   /**
    * This determines if the command is invoked when in script mode.
    */
-  virtual bool IsScriptable() { return true; }
+  virtual bool IsScriptable() const { return true; }
 
   /**
    * The name of the command as specified in CMakeList.txt.
    */
-  virtual const char* GetName() {return "unset";}
-
-  /**
-   * Succinct documentation.
-   */
-  virtual const char* GetTerseDocumentation()
-    {
-    return "Unset a variable, cache variable, or environment variable.";
-    }
-
-  /**
-   * More documentation.
-   */
-  virtual const char* GetFullDocumentation()
-    {
-    return
-      "  unset(<variable> [CACHE])\n"
-      "Removes the specified variable causing it to become undefined.  "
-      "If CACHE is present then the variable is removed from the cache "
-      "instead of the current scope.\n"
-      "<variable> can be an environment variable such as:\n"
-      "  unset(ENV{LD_LIBRARY_PATH})\n"
-      "in which case the variable will be removed from the current "
-      "environment.";
-    }
+  virtual std::string GetName() const {return "unset";}
 
   cmTypeMacro(cmUnsetCommand, cmCommand);
 };

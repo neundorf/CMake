@@ -29,6 +29,7 @@ cmCTestHandlerCommand::cmCTestHandlerCommand()
   this->Arguments[ct_SUBMIT_INDEX] = "SUBMIT_INDEX";
   this->Last = ct_LAST;
   this->AppendXML = false;
+  this->Quiet = false;
 }
 
 bool cmCTestHandlerCommand
@@ -46,9 +47,9 @@ bool cmCTestHandlerCommand
     if(!this->CheckArgumentKeyword(args[i]) &&
        !this->CheckArgumentValue(args[i]))
       {
-      cmOStringStream e;
+      std::ostringstream e;
       e << "called with unknown argument \"" << args[i] << "\".";
-      this->SetError(e.str().c_str());
+      this->SetError(e.str());
       return false;
       }
 
@@ -70,34 +71,21 @@ bool cmCTestHandlerCommand
     this->CTest->SetConfigType(ctestConfigType);
     }
 
-  cmCTestLog(this->CTest, DEBUG, "Initialize handler" << std::endl;);
-  cmCTestGenericHandler* handler = this->InitializeHandler();
-  if ( !handler )
-    {
-    cmCTestLog(this->CTest, ERROR_MESSAGE,
-               "Cannot instantiate test handler " << this->GetName()
-               << std::endl);
-    return false;
-    }
-
-  handler->SetAppendXML(this->AppendXML);
-
-  handler->PopulateCustomVectors(this->Makefile);
   if ( this->Values[ct_BUILD] )
     {
     this->CTest->SetCTestConfiguration("BuildDirectory",
       cmSystemTools::CollapseFullPath(
-        this->Values[ct_BUILD]).c_str());
+        this->Values[ct_BUILD]).c_str(), this->Quiet);
     }
   else
     {
-    const char* bdir = 
+    const char* bdir =
       this->Makefile->GetSafeDefinition("CTEST_BINARY_DIRECTORY");
     if(bdir)
       {
       this->
         CTest->SetCTestConfiguration("BuildDirectory",
-          cmSystemTools::CollapseFullPath(bdir).c_str());
+          cmSystemTools::CollapseFullPath(bdir).c_str(), this->Quiet);
       }
     else
       {
@@ -111,17 +99,38 @@ bool cmCTestHandlerCommand
       "Set source directory to: " << this->Values[ct_SOURCE] << std::endl);
     this->CTest->SetCTestConfiguration("SourceDirectory",
       cmSystemTools::CollapseFullPath(
-        this->Values[ct_SOURCE]).c_str());
+        this->Values[ct_SOURCE]).c_str(), this->Quiet);
     }
   else
     {
     this->CTest->SetCTestConfiguration("SourceDirectory",
       cmSystemTools::CollapseFullPath(
-        this->Makefile->GetSafeDefinition("CTEST_SOURCE_DIRECTORY")).c_str());
+        this->Makefile->GetSafeDefinition("CTEST_SOURCE_DIRECTORY")).c_str(),
+      this->Quiet);
     }
+
+  if(const char* changeId =
+     this->Makefile->GetDefinition("CTEST_CHANGE_ID"))
+    {
+    this->CTest->SetCTestConfiguration("ChangeId", changeId, this->Quiet);
+    }
+
+  cmCTestLog(this->CTest, DEBUG, "Initialize handler" << std::endl;);
+  cmCTestGenericHandler* handler = this->InitializeHandler();
+  if ( !handler )
+    {
+    cmCTestLog(this->CTest, ERROR_MESSAGE,
+               "Cannot instantiate test handler " << this->GetName()
+               << std::endl);
+    return false;
+    }
+
+  handler->SetAppendXML(this->AppendXML);
+
+  handler->PopulateCustomVectors(this->Makefile);
   if ( this->Values[ct_SUBMIT_INDEX] )
     {
-    if ( this->CTest->GetDartVersion() <= 1 )
+    if(!this->CTest->GetDropSiteCDash() && this->CTest->GetDartVersion() <= 1)
       {
       cmCTestLog(this->CTest, ERROR_MESSAGE,
         "Dart before version 2.0 does not support collecting submissions."
@@ -136,16 +145,16 @@ bool cmCTestHandlerCommand
     }
   std::string current_dir = cmSystemTools::GetCurrentWorkingDirectory();
   cmSystemTools::ChangeDirectory(
-    this->CTest->GetCTestConfiguration("BuildDirectory").c_str());
+    this->CTest->GetCTestConfiguration("BuildDirectory"));
   int res = handler->ProcessHandler();
   if ( this->Values[ct_RETURN_VALUE] && *this->Values[ct_RETURN_VALUE])
     {
-    cmOStringStream str;
+    std::ostringstream str;
     str << res;
     this->Makefile->AddDefinition(
       this->Values[ct_RETURN_VALUE], str.str().c_str());
     }
-  cmSystemTools::ChangeDirectory(current_dir.c_str());
+  cmSystemTools::ChangeDirectory(current_dir);
   return true;
 }
 
@@ -157,6 +166,12 @@ bool cmCTestHandlerCommand::CheckArgumentKeyword(std::string const& arg)
     {
     this->ArgumentDoing = ArgumentDoingNone;
     this->AppendXML = true;
+    return true;
+    }
+  if(arg == "QUIET")
+    {
+    this->ArgumentDoing = ArgumentDoingNone;
+    this->Quiet = true;
     return true;
     }
 
@@ -182,7 +197,7 @@ bool cmCTestHandlerCommand::CheckArgumentValue(std::string const& arg)
     unsigned int k = this->ArgumentIndex;
     if(this->Values[k])
       {
-      cmOStringStream e;
+      std::ostringstream e;
       e << "Called with more than one value for " << this->Arguments[k];
       this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
       this->ArgumentDoing = ArgumentDoingError;

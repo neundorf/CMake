@@ -17,15 +17,15 @@
 class cmMakefileExecutableTargetGenerator: public cmMakefileTargetGenerator
 {
 public:
-  cmMakefileExecutableTargetGenerator(cmTarget* target);
+  cmMakefileExecutableTargetGenerator(cmGeneratorTarget* target);
+  virtual ~cmMakefileExecutableTargetGenerator();
 
   /* the main entry point for this class. Writes the Makefiles associated
      with this target */
   virtual void WriteRuleFiles();
-  
+
 protected:
   virtual void WriteExecutableRule(bool relink);
-  void CreateAppBundle(std::string& targetName, std::string& outpath);
 };
 
 #endif

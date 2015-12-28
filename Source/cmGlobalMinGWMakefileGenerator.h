@@ -22,23 +22,21 @@
 class cmGlobalMinGWMakefileGenerator : public cmGlobalUnixMakefileGenerator3
 {
 public:
-  cmGlobalMinGWMakefileGenerator();
-  static cmGlobalGenerator* New() { 
-    return new cmGlobalMinGWMakefileGenerator; }
+  cmGlobalMinGWMakefileGenerator(cmake* cm);
+  static cmGlobalGeneratorFactory* NewFactory() {
+    return new cmGlobalGeneratorSimpleFactory
+      <cmGlobalMinGWMakefileGenerator>(); }
   ///! Get the name for the generator.
-  virtual const char* GetName() const {
+  virtual std::string GetName() const {
     return cmGlobalMinGWMakefileGenerator::GetActualName();}
-  static const char* GetActualName() {return "MinGW Makefiles";}
+  static std::string GetActualName() {return "MinGW Makefiles";}
 
   /** Get the documentation entry for this generator.  */
-  virtual void GetDocumentation(cmDocumentationEntry& entry) const;
-  
-  ///! Create a local generator appropriate to this Global Generator
-  virtual cmLocalGenerator *CreateLocalGenerator();
+  static void GetDocumentation(cmDocumentationEntry& entry);
 
   /**
-   * Try to determine system infomation such as shared library
-   * extension, pthreads, byte order etc.  
+   * Try to determine system information such as shared library
+   * extension, pthreads, byte order etc.
    */
   virtual void EnableLanguage(std::vector<std::string>const& languages,
                               cmMakefile *, bool optional);

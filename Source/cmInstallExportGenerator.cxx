@@ -16,7 +16,6 @@
 #include "cmake.h"
 #include "cmInstallTargetGenerator.h"
 #include "cmGeneratedFileStream.h"
-#include "cmTarget.h"
 #include "cmMakefile.h"
 #include "cmLocalGenerator.h"
 #include "cmGlobalGenerator.h"
@@ -24,24 +23,28 @@
 #include "cmInstallFilesGenerator.h"
 
 #include "cmExportInstallFileGenerator.h"
+#include "cmExportSet.h"
 
 //----------------------------------------------------------------------------
 cmInstallExportGenerator::cmInstallExportGenerator(
-  const char* name,
+  cmExportSet* exportSet,
   const char* destination,
   const char* file_permissions,
   std::vector<std::string> const& configurations,
   const char* component,
+  MessageLevel message,
   const char* filename, const char* name_space,
-  cmMakefile* mf)
-  :cmInstallGenerator(destination, configurations, component)
-  ,Name(name)
+  bool exportOld)
+  :cmInstallGenerator(destination, configurations, component, message)
+  ,ExportSet(exportSet)
   ,FilePermissions(file_permissions)
   ,FileName(filename)
   ,Namespace(name_space)
-  ,Makefile(mf)
+  ,ExportOld(exportOld)
+  ,LocalGenerator(0)
 {
   this->EFGen = new cmExportInstallFileGenerator(this);
+  exportSet->AddInstallation(this);
 }
 
 //----------------------------------------------------------------------------
@@ -50,12 +53,19 @@ cmInstallExportGenerator::~cmInstallExportGenerator()
   delete this->EFGen;
 }
 
+void cmInstallExportGenerator::Compute(cmLocalGenerator* lg)
+{
+  this->LocalGenerator = lg;
+  this->ExportSet->Compute(lg);
+}
+
 //----------------------------------------------------------------------------
 void cmInstallExportGenerator::ComputeTempDir()
 {
   // Choose a temporary directory in which to generate the import
   // files to be installed.
-  this->TempDir = this->Makefile->GetCurrentOutputDirectory();
+  this->TempDir =
+      this->LocalGenerator->GetCurrentBinaryDirectory();
   this->TempDir += cmake::GetCMakeFilesDirectory();
   this->TempDir += "/Export";
   if(this->Destination.empty())
@@ -91,7 +101,7 @@ void cmInstallExportGenerator::ComputeTempDir()
     {
     // Replace the destination path with a hash to keep it short.
     this->TempDir +=
-      cmSystemTools::ComputeStringMD5(this->Destination.c_str());
+      cmSystemTools::ComputeStringMD5(this->Destination);
     }
   else
     {
@@ -114,16 +124,12 @@ void cmInstallExportGenerator::ComputeTempDir()
 //----------------------------------------------------------------------------
 void cmInstallExportGenerator::GenerateScript(std::ostream& os)
 {
-  // Get the export set requested.
-  ExportSet const* exportSet =
-    this->Makefile->GetLocalGenerator()->GetGlobalGenerator()
-    ->GetExportSet(this->Name.c_str());
-
   // Skip empty sets.
-  if(!exportSet)
+  if(ExportSet->GetTargetExports()->empty())
     {
-    cmOStringStream e;
-    e << "INSTALL(EXPORT) given unknown export \"" << this->Name << "\"";
+    std::ostringstream e;
+    e << "INSTALL(EXPORT) given unknown export \""
+      << ExportSet->GetName() << "\"";
     cmSystemTools::Error(e.str().c_str());
     return;
     }
@@ -138,13 +144,12 @@ void cmInstallExportGenerator::GenerateScript(std::ostream& os)
   this->MainImportFile += this->FileName;
 
   // Generate the import file for this export set.
-  this->EFGen->SetName(this->Name.c_str());
-  this->EFGen->SetExportSet(exportSet);
   this->EFGen->SetExportFile(this->MainImportFile.c_str());
-  this->EFGen->SetNamespace(this->Namespace.c_str());
+  this->EFGen->SetNamespace(this->Namespace);
+  this->EFGen->SetExportOld(this->ExportOld);
   if(this->ConfigurationTypes->empty())
     {
-    if(this->ConfigurationName && *this->ConfigurationName)
+    if(!this->ConfigurationName.empty())
       {
       this->EFGen->AddConfiguration(this->ConfigurationName);
       }
@@ -159,7 +164,7 @@ void cmInstallExportGenerator::GenerateScript(std::ostream& os)
           ci = this->ConfigurationTypes->begin();
         ci != this->ConfigurationTypes->end(); ++ci)
       {
-      this->EFGen->AddConfiguration(ci->c_str());
+      this->EFGen->AddConfiguration(*ci);
       }
     }
   this->EFGen->GenerateImportFile();
@@ -179,17 +184,18 @@ cmInstallExportGenerator::GenerateScriptConfigs(std::ostream& os,
   // Now create a configuration-specific install rule for the import
   // file of each configuration.
   std::vector<std::string> files;
-  for(std::map<cmStdString, cmStdString>::const_iterator
+  for(std::map<std::string, std::string>::const_iterator
         i = this->EFGen->GetConfigImportFiles().begin();
       i != this->EFGen->GetConfigImportFiles().end(); ++i)
     {
     files.push_back(i->second);
-    std::string config_test = this->CreateConfigTest(i->first.c_str());
-    os << indent << "IF(" << config_test << ")\n";
-    this->AddInstallRule(os, cmTarget::INSTALL_FILES, files, false,
+    std::string config_test = this->CreateConfigTest(i->first);
+    os << indent << "if(" << config_test << ")\n";
+    this->AddInstallRule(os, this->Destination,
+                         cmInstallType_FILES, files, false,
                          this->FilePermissions.c_str(), 0, 0, 0,
                          indent.Next());
-    os << indent << "ENDIF(" << config_test << ")\n";
+    os << indent << "endif()\n";
     files.clear();
     }
 }
@@ -200,31 +206,32 @@ void cmInstallExportGenerator::GenerateScriptActions(std::ostream& os,
 {
   // Remove old per-configuration export files if the main changes.
   std::string installedDir = "$ENV{DESTDIR}";
-  installedDir += this->GetInstallDestination();
+  installedDir += this->ConvertToAbsoluteDestination(this->Destination);
   installedDir += "/";
   std::string installedFile = installedDir;
   installedFile += this->FileName;
-  os << indent << "IF(EXISTS \"" << installedFile << "\")\n";
+  os << indent << "if(EXISTS \"" << installedFile << "\")\n";
   Indent indentN = indent.Next();
   Indent indentNN = indentN.Next();
   Indent indentNNN = indentNN.Next();
-  os << indentN << "FILE(DIFFERENT EXPORT_FILE_CHANGED FILES\n"
+  os << indentN << "file(DIFFERENT EXPORT_FILE_CHANGED FILES\n"
      << indentN << "     \"" << installedFile << "\"\n"
      << indentN << "     \"" << this->MainImportFile << "\")\n";
-  os << indentN << "IF(EXPORT_FILE_CHANGED)\n";
-  os << indentNN << "FILE(GLOB OLD_CONFIG_FILES \"" << installedDir
+  os << indentN << "if(EXPORT_FILE_CHANGED)\n";
+  os << indentNN << "file(GLOB OLD_CONFIG_FILES \"" << installedDir
      << this->EFGen->GetConfigImportFileGlob() << "\")\n";
-  os << indentNN << "IF(OLD_CONFIG_FILES)\n";
-  os << indentNNN << "MESSAGE(STATUS \"Old export file \\\"" << installedFile
+  os << indentNN << "if(OLD_CONFIG_FILES)\n";
+  os << indentNNN << "message(STATUS \"Old export file \\\"" << installedFile
      << "\\\" will be replaced.  Removing files [${OLD_CONFIG_FILES}].\")\n";
-  os << indentNNN << "FILE(REMOVE ${OLD_CONFIG_FILES})\n";
-  os << indentNN << "ENDIF(OLD_CONFIG_FILES)\n";
-  os << indentN << "ENDIF(EXPORT_FILE_CHANGED)\n";
-  os << indent << "ENDIF()\n";
+  os << indentNNN << "file(REMOVE ${OLD_CONFIG_FILES})\n";
+  os << indentNN << "endif()\n";
+  os << indentN << "endif()\n";
+  os << indent << "endif()\n";
 
   // Install the main export file.
   std::vector<std::string> files;
   files.push_back(this->MainImportFile);
-  this->AddInstallRule(os, cmTarget::INSTALL_FILES, files, false,
+  this->AddInstallRule(os, this->Destination,
+                       cmInstallType_FILES, files, false,
                        this->FilePermissions.c_str(), 0, 0, 0, indent);
 }

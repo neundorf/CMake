@@ -1,12 +1,30 @@
-# This file is executed by cmake when invoked with --find-package.
-# It expects that the following variables are set using -D:
-#   NAME = name of the package
-#   COMPILER_ID = the CMake compiler ID for which the result is, i.e. GNU/Intel/Clang/MSVC, etc.
-#   LANGUAGE = language for which the result will be used, i.e. C/CXX/Fortan/ASM
-#   MODE = EXIST : only check for existance of the given package
-#          COMPILE : print the flags needed for compiling an object file which uses the given package
-#          LINK : print the flags needed for linking when using the given package
-#   QUIET = if TRUE, don't print anything
+#.rst:
+# CMakeFindPackageMode
+# --------------------
+#
+#
+#
+# This file is executed by cmake when invoked with --find-package.  It
+# expects that the following variables are set using -D:
+#
+# ``NAME``
+#   name of the package
+# ``COMPILER_ID``
+#   the CMake compiler ID for which the result is,
+#   i.e. GNU/Intel/Clang/MSVC, etc.
+# ``LANGUAGE``
+#   language for which the result will be used,
+#   i.e. C/CXX/Fortan/ASM
+# ``MODE``
+#   ``EXIST``
+#     only check for existence of the given package
+#   ``COMPILE``
+#     print the flags needed for compiling an object file which uses
+#     the given package
+#   ``LINK``
+#     print the flags needed for linking when using the given package
+# ``QUIET``
+#   if TRUE, don't print anything
 
 #=============================================================================
 # Copyright 2006-2011 Alexander Neundorf, <neundorf@kde.org>
@@ -47,12 +65,14 @@ macro(ENABLE_LANGUAGE)
   # But in --find-package mode, we don't want (and can't) enable any language.
 endmacro()
 
+set(CMAKE_PLATFORM_INFO_DIR ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY})
+
 include(CMakeDetermineSystem)
 
 # short-cut some tests on Darwin, see Darwin-GNU.cmake:
 if("${CMAKE_SYSTEM_NAME}" MATCHES Darwin  AND  "${COMPILER_ID}" MATCHES GNU)
-  set(${CMAKE_${LANGUAGE}_HAS_ISYSROOT} 0 )
-  set(CMAKE_${lang}_OSX_DEPLOYMENT_TARGET_FLAG "")
+  set(CMAKE_${LANGUAGE}_SYSROOT_FLAG "")
+  set(CMAKE_${LANGUAGE}_OSX_DEPLOYMENT_TARGET_FLAG "")
 endif()
 
 # Also load the system specific file, which sets up e.g. the search paths.
@@ -71,7 +91,8 @@ if(UNIX)
       # use the file utility to check whether itself is 64 bit:
       find_program(FILE_EXECUTABLE file)
       if(FILE_EXECUTABLE)
-        execute_process(COMMAND "${FILE_EXECUTABLE}" "${FILE_EXECUTABLE}" OUTPUT_VARIABLE fileOutput ERROR_QUIET)
+        get_filename_component(FILE_ABSPATH "${FILE_EXECUTABLE}" ABSOLUTE)
+        execute_process(COMMAND "${FILE_ABSPATH}" "${FILE_ABSPATH}" OUTPUT_VARIABLE fileOutput ERROR_QUIET)
         if("${fileOutput}" MATCHES "64-bit")
           set(CMAKE_SIZEOF_VOID_P 8)
         endif()
@@ -81,14 +102,17 @@ if(UNIX)
 
   # guess Debian multiarch if it has not been set:
   if(EXISTS /etc/debian_version)
-    if(NOT CMAKE_${LANGUAGE}_LANGUAGE_ARCHITECTURE )
+    if(NOT CMAKE_${LANGUAGE}_LIBRARY_ARCHITECTURE )
       file(GLOB filesInLib RELATIVE /lib /lib/*-linux-gnu* )
       foreach(file ${filesInLib})
         if("${file}" MATCHES "${CMAKE_LIBRARY_ARCHITECTURE_REGEX}")
-          set(CMAKE_${LANGUAGE}_LANGUAGE_ARCHITECTURE ${file})
+          set(CMAKE_${LANGUAGE}_LIBRARY_ARCHITECTURE ${file})
           break()
         endif()
       endforeach()
+    endif()
+    if(NOT CMAKE_LIBRARY_ARCHITECTURE)
+      set(CMAKE_LIBRARY_ARCHITECTURE ${CMAKE_${LANGUAGE}_LIBRARY_ARCHITECTURE})
     endif()
   endif()
 
@@ -178,7 +202,7 @@ if(${NAME}_FOUND  OR  ${UPPERCASE_NAME}_FOUND)
     set_compile_flags_var(${NAME})
   elseif("${MODE}" STREQUAL "LINK")
     set_link_flags_var(${NAME})
-  else("${MODE}" STREQUAL "LINK")
+  else()
     message(FATAL_ERROR "Invalid mode argument ${MODE} given.")
   endif()
 

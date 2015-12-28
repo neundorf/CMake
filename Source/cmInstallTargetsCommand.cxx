@@ -22,8 +22,7 @@ bool cmInstallTargetsCommand
     }
 
   // Enable the install target.
-  this->Makefile->GetLocalGenerator()
-    ->GetGlobalGenerator()->EnableInstallTarget();
+  this->Makefile->GetGlobalGenerator()->EnableInstallTarget();
 
   cmTargets &tgts = this->Makefile->GetTargets();
   std::vector<std::string>::const_iterator s = args.begin();
@@ -52,13 +51,14 @@ bool cmInstallTargetsCommand
     else
       {
       std::string str = "Cannot find target: \"" + *s + "\" to install.";
-      this->SetError(str.c_str());
+      this->SetError(str);
       return false;
       }
     }
 
-  this->Makefile->GetLocalGenerator()->GetGlobalGenerator()
-                       ->AddInstallComponent("Unspecified");
+  this->Makefile->GetGlobalGenerator()
+                       ->AddInstallComponent(this->Makefile->GetSafeDefinition(
+                                      "CMAKE_INSTALL_DEFAULT_COMPONENT_NAME"));
 
   return true;
 }

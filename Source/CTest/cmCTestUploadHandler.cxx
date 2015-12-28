@@ -13,7 +13,7 @@
 
 #include "cmGeneratedFileStream.h"
 #include "cmVersion.h"
-#include "cmXMLSafe.h"
+#include "cmXMLWriter.h"
 
 //----------------------------------------------------------------------------
 cmCTestUploadHandler::cmCTestUploadHandler()
@@ -44,34 +44,39 @@ int cmCTestUploadHandler::ProcessHandler()
       "Cannot open Upload.xml file" << std::endl);
     return -1;
     }
-
+  std::string buildname = cmCTest::SafeBuildIdField(
+    this->CTest->GetCTestConfiguration("BuildName"));
   cmCTest::SetOfStrings::const_iterator it;
-  ofs << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-     << "<?xml-stylesheet type=\"text/xsl\" "
+
+  cmXMLWriter xml(ofs);
+  xml.StartDocument();
+  xml.ProcessingInstruction("xml-stylesheet", "type=\"text/xsl\" "
     "href=\"Dart/Source/Server/XSL/Build.xsl "
-    "<file:///Dart/Source/Server/XSL/Build.xsl> \"?>\n"
-     << "<Site BuildName=\""
-     << this->CTest->GetCTestConfiguration("BuildName")
-     << "\" BuildStamp=\""
-     << this->CTest->GetCurrentTag() << "-"
-     << this->CTest->GetTestModelString() << "\" Name=\""
-     << this->CTest->GetCTestConfiguration("Site") << "\" Generator=\"ctest"
-     << cmVersion::GetCMakeVersion()
-     << "\">\n";
-  this->CTest->AddSiteProperties(ofs);
-  ofs << "<Upload>\n";
+    "<file:///Dart/Source/Server/XSL/Build.xsl> \"");
+  xml.StartElement("Site");
+  xml.Attribute("BuildName", buildname);
+  xml.Attribute("BuildStamp",
+    this->CTest->GetCurrentTag() + "-" + this->CTest->GetTestModelString());
+  xml.Attribute("Name", this->CTest->GetCTestConfiguration("Site"));
+  xml.Attribute("Generator",
+    std::string("ctest") + cmVersion::GetCMakeVersion());
+  this->CTest->AddSiteProperties(xml);
+  xml.StartElement("Upload");
 
   for ( it = this->Files.begin(); it != this->Files.end(); it ++ )
     {
-    cmCTestLog(this->CTest, OUTPUT,
-               "\tUpload file: " << it->c_str() << std::endl);
-    ofs << "<File filename=\"" << cmXMLSafe(*it) << "\">\n"
-       << "<Content encoding=\"base64\">\n";
-    ofs << this->CTest->Base64EncodeFile(*it);
-    ofs << "\n</Content>\n"
-      << "</File>\n";
+    cmCTestOptionalLog(this->CTest, OUTPUT,
+      "\tUpload file: " << *it << std::endl, this->Quiet);
+    xml.StartElement("File");
+    xml.Attribute("filename", *it);
+    xml.StartElement("Content");
+    xml.Attribute("encoding", "base64");
+    xml.Content(this->CTest->Base64EncodeFile(*it));
+    xml.EndElement(); // Content
+    xml.EndElement(); // File
     }
-  ofs << "</Upload>\n"
-    << "</Site>\n";
+  xml.EndElement(); // Upload
+  xml.EndElement(); // Site
+  xml.EndDocument();
   return 0;
 }

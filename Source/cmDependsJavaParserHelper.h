@@ -9,7 +9,7 @@
   implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   See the License for more information.
 ============================================================================*/
-#ifndef cmDependsJavaParserHelper_h 
+#ifndef cmDependsJavaParserHelper_h
 #define cmDependsJavaParserHelper_h
 
 #include "cmStandardIncludes.h"
@@ -39,7 +39,7 @@ public:
   int ParseFile(const char* file);
 
   // For the lexer:
-  void AllocateParserType(cmDependsJavaParserHelper::ParserType* pt, 
+  void AllocateParserType(cmDependsJavaParserHelper::ParserType* pt,
     const char* str, int len = 0);
 
   int LexInput(char* buf, int maxlen);
@@ -59,17 +59,17 @@ public:
   const char* GetCurrentCombine() { return this->CurrentCombine.c_str(); }
   void UpdateCombine(const char* str1, const char* str2);
 
-  std::vector<cmStdString>& GetClassesFound() { return this->ClassesFound; }
+  std::vector<std::string>& GetClassesFound() { return this->ClassesFound; }
 
-  std::vector<cmStdString> GetFilesProduced();
+  std::vector<std::string> GetFilesProduced();
 
 private:
   class CurrentClass
   {
   public:
-    cmStdString Name;
+    std::string Name;
     std::vector<CurrentClass>* NestedClasses;
-    CurrentClass() 
+    CurrentClass()
       {
         this->NestedClasses = new std::vector<CurrentClass>;
       }
@@ -77,7 +77,7 @@ private:
       {
         delete this->NestedClasses;
       }
-    CurrentClass& operator=(CurrentClass const& c) 
+    CurrentClass& operator=(CurrentClass const& c)
       {
         this->NestedClasses->clear();
         this->Name = c.Name;
@@ -93,16 +93,16 @@ private:
       {
         (*this) = c;
       }
-    void AddFileNamesForPrinting(std::vector<cmStdString> *files, 
+    void AddFileNamesForPrinting(std::vector<std::string> *files,
                                  const char* prefix, const char* sep);
   };
-  cmStdString CurrentPackage;
-  cmStdString::size_type InputBufferPos;
-  cmStdString InputBuffer;
+  std::string CurrentPackage;
+  std::string::size_type InputBufferPos;
+  std::string InputBuffer;
   std::vector<char> OutputBuffer;
-  std::vector<cmStdString> ClassesFound;
-  std::vector<cmStdString> PackagesImport;
-  cmStdString CurrentCombine;
+  std::vector<std::string> ClassesFound;
+  std::vector<std::string> PackagesImport;
+  std::string CurrentCombine;
 
   std::vector<CurrentClass> ClassStack;
 
@@ -117,7 +117,7 @@ private:
   void PrintClasses();
 
   void Print(const char* place, const char* str);
-  void CombineUnions(char** out, const char* in1, char** in2, 
+  void CombineUnions(char** out, const char* in1, char** in2,
                      const char* sep);
   void SafePrintMissing(const char* str, int line, int cnt);
 

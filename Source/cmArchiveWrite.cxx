@@ -12,9 +12,44 @@
 #include "cmArchiveWrite.h"
 
 #include "cmSystemTools.h"
-#include <cmsys/ios/iostream>
+#include "cmLocale.h"
 #include <cmsys/Directory.hxx>
+#include <cmsys/FStream.hxx>
 #include <cm_libarchive.h>
+#include "cm_get_date.h"
+
+#ifndef __LA_SSIZE_T
+# define __LA_SSIZE_T la_ssize_t
+#endif
+
+//----------------------------------------------------------------------------
+static std::string cm_archive_error_string(struct archive* a)
+{
+  const char* e = archive_error_string(a);
+  return e? e : "unknown error";
+}
+
+//----------------------------------------------------------------------------
+static void cm_archive_entry_copy_pathname(struct archive_entry* e,
+  const std::string& dest)
+{
+#if cmsys_STL_HAS_WSTRING
+  archive_entry_copy_pathname_w(e, cmsys::Encoding::ToWide(dest).c_str());
+#else
+  archive_entry_copy_pathname(e, dest.c_str());
+#endif
+}
+
+//----------------------------------------------------------------------------
+static void cm_archive_entry_copy_sourcepath(struct archive_entry* e,
+  const std::string& file)
+{
+#if cmsys_STL_HAS_WSTRING
+  archive_entry_copy_sourcepath_w(e, cmsys::Encoding::ToWide(file).c_str());
+#else
+  archive_entry_copy_sourcepath(e, file.c_str());
+#endif
+}
 
 //----------------------------------------------------------------------------
 class cmArchiveWrite::Entry
@@ -35,7 +70,7 @@ struct cmArchiveWrite::Callback
     {
     cmArchiveWrite* self = static_cast<cmArchiveWrite*>(cd);
     if(self->Stream.write(static_cast<const char*>(b),
-                          static_cast<cmsys_ios::streamsize>(n)))
+                          static_cast<std::streamsize>(n)))
       {
       return static_cast<__LA_SSIZE_T>(n);
       }
@@ -47,59 +82,61 @@ struct cmArchiveWrite::Callback
 };
 
 //----------------------------------------------------------------------------
-cmArchiveWrite::cmArchiveWrite(std::ostream& os, Compress c, Type t):
-  Stream(os),
-  Archive(archive_write_new()),
-  Disk(archive_read_disk_new()),
-  Verbose(false)
+cmArchiveWrite::cmArchiveWrite(
+  std::ostream& os, Compress c, std::string const& format):
+    Stream(os),
+    Archive(archive_write_new()),
+    Disk(archive_read_disk_new()),
+    Verbose(false),
+    Format(format)
 {
   switch (c)
     {
     case CompressNone:
-      if(archive_write_set_compression_none(this->Archive) != ARCHIVE_OK)
+      if(archive_write_add_filter_none(this->Archive) != ARCHIVE_OK)
         {
-        this->Error = "archive_write_set_compression_none: ";
-        this->Error += archive_error_string(this->Archive);
+        this->Error = "archive_write_add_filter_none: ";
+        this->Error += cm_archive_error_string(this->Archive);
         return;
         }
       break;
     case CompressCompress:
-      if(archive_write_set_compression_compress(this->Archive) != ARCHIVE_OK)
+      if(archive_write_add_filter_compress(this->Archive) != ARCHIVE_OK)
         {
-        this->Error = "archive_write_set_compression_compress: ";
-        this->Error += archive_error_string(this->Archive);
+        this->Error = "archive_write_add_filter_compress: ";
+        this->Error += cm_archive_error_string(this->Archive);
         return;
         }
       break;
     case CompressGZip:
-      if(archive_write_set_compression_gzip(this->Archive) != ARCHIVE_OK)
+      if(archive_write_add_filter_gzip(this->Archive) != ARCHIVE_OK)
         {
-        this->Error = "archive_write_set_compression_gzip: ";
-        this->Error += archive_error_string(this->Archive);
+        this->Error = "archive_write_add_filter_gzip: ";
+        this->Error += cm_archive_error_string(this->Archive);
         return;
         }
       break;
     case CompressBZip2:
-      if(archive_write_set_compression_bzip2(this->Archive) != ARCHIVE_OK)
+      if(archive_write_add_filter_bzip2(this->Archive) != ARCHIVE_OK)
         {
-        this->Error = "archive_write_set_compression_bzip2: ";
-        this->Error += archive_error_string(this->Archive);
+        this->Error = "archive_write_add_filter_bzip2: ";
+        this->Error += cm_archive_error_string(this->Archive);
         return;
         }
       break;
     case CompressLZMA:
-      if(archive_write_set_compression_lzma(this->Archive) != ARCHIVE_OK)
+      if(archive_write_add_filter_lzma(this->Archive) != ARCHIVE_OK)
         {
-        this->Error = "archive_write_set_compression_lzma: ";
-        this->Error += archive_error_string(this->Archive);
+        this->Error = "archive_write_add_filter_lzma: ";
+        this->Error += cm_archive_error_string(this->Archive);
         return;
         }
       break;
     case CompressXZ:
-      if(archive_write_set_compression_xz(this->Archive) != ARCHIVE_OK)
+      if(archive_write_add_filter_xz(this->Archive) != ARCHIVE_OK)
         {
-        this->Error = "archive_write_set_compression_xz: ";
-        this->Error += archive_error_string(this->Archive);
+        this->Error = "archive_write_add_filter_xz: ";
+        this->Error += cm_archive_error_string(this->Archive);
         return;
         }
       break;
@@ -108,35 +145,24 @@ cmArchiveWrite::cmArchiveWrite(std::ostream& os, Compress c, Type t):
   if (archive_read_disk_set_standard_lookup(this->Disk) != ARCHIVE_OK)
     {
     this->Error = "archive_read_disk_set_standard_lookup: ";
-    this->Error += archive_error_string(this->Archive);
-    return;;
+    this->Error += cm_archive_error_string(this->Archive);
+    return;
     }
 #endif
-  switch (t)
+
+  if(archive_write_set_format_by_name(this->Archive, format.c_str())
+    != ARCHIVE_OK)
     {
-    case TypeZIP:
-      if(archive_write_set_format_zip(this->Archive) != ARCHIVE_OK)
-        {
-        this->Error = "archive_write_set_format_zip: ";
-        this->Error += archive_error_string(this->Archive);
-        return;
-        }
-      break;
-    case TypeTAR:
-      if(archive_write_set_format_pax_restricted(this->Archive) != ARCHIVE_OK)
-        {
-        this->Error = "archive_write_set_format_pax_restricted: ";
-        this->Error += archive_error_string(this->Archive);
-        return;
-        }
-    break;
+    this->Error = "archive_write_set_format_by_name: ";
+    this->Error += cm_archive_error_string(this->Archive);
+    return;
     }
 
   // do not pad the last block!!
   if (archive_write_set_bytes_in_last_block(this->Archive, 1))
     {
     this->Error = "archive_write_set_bytes_in_last_block: ";
-    this->Error += archive_error_string(this->Archive);
+    this->Error += cm_archive_error_string(this->Archive);
     return;
     }
 
@@ -146,7 +172,7 @@ cmArchiveWrite::cmArchiveWrite(std::ostream& os, Compress c, Type t):
        0) != ARCHIVE_OK)
     {
     this->Error = "archive_write_open: ";
-    this->Error += archive_error_string(this->Archive);
+    this->Error += cm_archive_error_string(this->Archive);
     return;
     }
 }
@@ -154,12 +180,15 @@ cmArchiveWrite::cmArchiveWrite(std::ostream& os, Compress c, Type t):
 //----------------------------------------------------------------------------
 cmArchiveWrite::~cmArchiveWrite()
 {
-  archive_read_finish(this->Disk);
-  archive_write_finish(this->Archive);
+  archive_read_free(this->Disk);
+  archive_write_free(this->Archive);
 }
 
 //----------------------------------------------------------------------------
-bool cmArchiveWrite::Add(std::string path, size_t skip, const char* prefix)
+bool cmArchiveWrite::Add(std::string path,
+                         size_t skip,
+                         const char* prefix,
+                         bool recursive)
 {
   if(this->Okay())
     {
@@ -167,20 +196,21 @@ bool cmArchiveWrite::Add(std::string path, size_t skip, const char* prefix)
       {
       path.erase(path.size()-1);
       }
-    this->AddPath(path.c_str(), skip, prefix);
+    this->AddPath(path.c_str(), skip, prefix, recursive);
     }
   return this->Okay();
 }
 
 //----------------------------------------------------------------------------
 bool cmArchiveWrite::AddPath(const char* path,
-                             size_t skip, const char* prefix)
+                             size_t skip, const char* prefix,
+                             bool recursive)
 {
   if(!this->AddFile(path, skip, prefix))
     {
     return false;
     }
-  if(!cmSystemTools::FileIsDirectory(path) ||
+  if((!cmSystemTools::FileIsDirectory(path) || !recursive) ||
     cmSystemTools::FileIsSymlink(path))
     {
     return true;
@@ -221,6 +251,9 @@ bool cmArchiveWrite::AddFile(const char* file,
     }
   const char* out = file + skip;
 
+  cmLocaleRAII localeRAII;
+  static_cast<void>(localeRAII);
+
   // Meta-data.
   std::string dest = prefix? prefix : "";
   dest += out;
@@ -229,28 +262,84 @@ bool cmArchiveWrite::AddFile(const char* file,
     std::cout << dest << "\n";
     }
   Entry e;
-  archive_entry_copy_sourcepath(e, file);
-  archive_entry_set_pathname(e, dest.c_str());
+  cm_archive_entry_copy_sourcepath(e, file);
+  cm_archive_entry_copy_pathname(e, dest);
   if(archive_read_disk_entry_from_file(this->Disk, e, -1, 0) != ARCHIVE_OK)
     {
-    this->Error = "archive_read_disk_entry_from_file: ";
-    this->Error += archive_error_string(this->Disk);
+    this->Error = "archive_read_disk_entry_from_file '";
+    this->Error += file;
+    this->Error += "': ";
+    this->Error += cm_archive_error_string(this->Disk);
     return false;
     }
+  if (!this->MTime.empty())
+    {
+    time_t now;
+    time(&now);
+    time_t t = cm_get_date(now, this->MTime.c_str());
+    if (t == -1)
+      {
+      this->Error = "unable to parse mtime '";
+      this->Error += this->MTime;
+      this->Error += "'";
+      return false;
+      }
+    archive_entry_set_mtime(e, t, 0);
+    }
+
+  // manages the uid/guid of the entry (if any)
+  if (this->Uid.IsSet() && this->Gid.IsSet())
+    {
+    archive_entry_set_uid(e, this->Uid.Get());
+    archive_entry_set_gid(e, this->Gid.Get());
+    }
+
+  if (this->Uname.size() && this->Gname.size())
+    {
+    archive_entry_set_uname(e, this->Uname.c_str());
+    archive_entry_set_gname(e, this->Gname.c_str());
+    }
+
+
+  // manages the permissions
+  if (this->Permissions.IsSet())
+    {
+    archive_entry_set_perm(e, this->Permissions.Get());
+    }
+
+  if (this->PermissionsMask.IsSet())
+    {
+    mode_t perm = archive_entry_perm(e);
+    archive_entry_set_perm(e, perm & this->PermissionsMask.Get());
+    }
+
   // Clear acl and xattr fields not useful for distribution.
   archive_entry_acl_clear(e);
   archive_entry_xattr_clear(e);
+  archive_entry_set_fflags(e, 0, 0);
+
+  if (this->Format == "pax" || this->Format == "paxr")
+    {
+    // Sparse files are a GNU tar extension.
+    // Do not use them in standard tar files.
+    archive_entry_sparse_clear(e);
+    }
+
   if(archive_write_header(this->Archive, e) != ARCHIVE_OK)
     {
     this->Error = "archive_write_header: ";
-    this->Error += archive_error_string(this->Archive);
+    this->Error += cm_archive_error_string(this->Archive);
     return false;
     }
 
-  // Content.
-  if(size_t size = static_cast<size_t>(archive_entry_size(e)))
+  // do not copy content of symlink
+  if (!archive_entry_symlink(e))
     {
-    return this->AddData(file, size);
+    // Content.
+    if(size_t size = static_cast<size_t>(archive_entry_size(e)))
+      {
+      return this->AddData(file, size);
+      }
     }
   return true;
 }
@@ -258,7 +347,7 @@ bool cmArchiveWrite::AddFile(const char* file,
 //----------------------------------------------------------------------------
 bool cmArchiveWrite::AddData(const char* file, size_t size)
 {
-  std::ifstream fin(file, std::ios::in | cmsys_ios_binary);
+  cmsys::ifstream fin(file, std::ios::in | std::ios::binary);
   if(!fin)
     {
     this->Error = "Error opening \"";
@@ -272,7 +361,7 @@ bool cmArchiveWrite::AddData(const char* file, size_t size)
   size_t nleft = size;
   while(nleft > 0)
     {
-    typedef cmsys_ios::streamsize ssize_type;
+    typedef std::streamsize ssize_type;
     size_t const nnext = nleft > sizeof(buffer)? sizeof(buffer) : nleft;
     ssize_type const nnext_s = static_cast<ssize_type>(nnext);
     fin.read(buffer, nnext_s);
@@ -286,7 +375,7 @@ bool cmArchiveWrite::AddData(const char* file, size_t size)
     if(archive_write_data(this->Archive, buffer, nnext) != nnext_s)
       {
       this->Error = "archive_write_data: ";
-      this->Error += archive_error_string(this->Archive);
+      this->Error += cm_archive_error_string(this->Archive);
       return false;
       }
     nleft -= nnext;

@@ -27,16 +27,19 @@ class cmCPackNSISGenerator : public cmCPackGenerator
 public:
   cmCPackTypeMacro(cmCPackNSISGenerator, cmCPackGenerator);
 
+  static cmCPackGenerator* CreateGenerator64()
+    { return new cmCPackNSISGenerator(true); }
+
   /**
    * Construct generator
    */
-  cmCPackNSISGenerator();
+  cmCPackNSISGenerator(bool nsis64 = false);
   virtual ~cmCPackNSISGenerator();
 
 protected:
   virtual int InitializeInternal();
-  void CreateMenuLinks( cmOStringStream& str,
-                        cmOStringStream& deleteStr);
+  void CreateMenuLinks( std::ostringstream& str,
+                        std::ostringstream& deleteStr);
   int PackageFiles();
   virtual const char* GetOutputExtension() { return ".exe"; }
   virtual const char* GetOutputPostfix() { return "win32"; }
@@ -44,6 +47,8 @@ protected:
   bool GetListOfSubdirectories(const char* dir,
     std::vector<std::string>& dirs);
 
+  enum cmCPackGenerator::CPackSetDestdirSupport SupportsSetDestdir() const;
+  virtual bool SupportsAbsoluteDestination() const;
   virtual bool SupportsComponentInstallation() const;
 
   /// Produce a string that contains the NSIS code to describe a
@@ -51,7 +56,7 @@ protected:
   /// macrosOut.
   std::string
   CreateComponentDescription(cmCPackComponent *component,
-                             cmOStringStream& macrosOut);
+                             std::ostringstream& macrosOut);
 
   /// Produce NSIS code that selects all of the components that this component
   /// depends on, recursively.
@@ -70,11 +75,13 @@ protected:
   /// added macros will be emitted via macrosOut.
   std::string
   CreateComponentGroupDescription(cmCPackComponentGroup *group,
-                                  cmOStringStream& macrosOut);
+                                  std::ostringstream& macrosOut);
 
   /// Translations any newlines found in the string into \\r\\n, so that the
   /// resulting string can be used within NSIS.
   static std::string TranslateNewlines(std::string str);
+
+  bool Nsis64;
 };
 
 #endif

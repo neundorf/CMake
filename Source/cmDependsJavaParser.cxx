@@ -336,12 +336,6 @@ static void cmDependsJavaError(yyscan_t yyscanner, const char* message);
 #define jpStoreClass(str) \
 yyGetParser->AddClassFound(str); yyGetParser->DeallocateParserType(&(str))
 /* Disable some warnings in the generated code.  */
-#ifdef __BORLANDC__
-# pragma warn -8004 /* Variable assigned a value that is not used.  */
-# pragma warn -8008 /* condition always returns true */
-# pragma warn -8060 /* possibly incorrect assignment */
-# pragma warn -8066 /* unreachable code */
-#endif
 #ifdef _MSC_VER
 # pragma warning (disable: 4102) /* Unused goto label.  */
 # pragma warning (disable: 4065) /* Switch statement contains default but
@@ -446,7 +440,7 @@ union yyalloc
 #   define YYCOPY(To, From, Count)    \
       do          \
   {          \
-    register YYSIZE_T yyi;    \
+    YYSIZE_T yyi;    \
     for (yyi = 0; yyi < (Count); yyi++)  \
       (To)[yyi] = (From)[yyi];    \
   }          \
@@ -1821,7 +1815,7 @@ yystrlen (yystr)
      const char *yystr;
 #   endif
 {
-  register const char *yys = yystr;
+  const char *yys = yystr;
 
   while (*yys++ != '\0')
     continue;
@@ -1846,8 +1840,8 @@ yystpcpy (yydest, yysrc)
      const char *yysrc;
 #   endif
 {
-  register char *yyd = yydest;
-  register const char *yys = yysrc;
+  char *yyd = yydest;
+  const char *yys = yysrc;
 
   while ((*yyd++ = *yys++) != '\0')
     continue;
@@ -1977,8 +1971,8 @@ YYSTYPE yylval;
 /* Number of syntax errors so far.  */
 int yynerrs;
 
-  register int yystate;
-  register int yyn;
+  int yystate;
+  int yyn;
   int yyresult;
   /* Number of tokens to shift before error messages enabled.  */
   int yyerrstatus;
@@ -1996,12 +1990,12 @@ int yynerrs;
   /* The state stack.  */
   short int yyssa[YYINITDEPTH];
   short int *yyss = yyssa;
-  register short int *yyssp;
+  short int *yyssp;
 
   /* The semantic value stack.  */
   YYSTYPE yyvsa[YYINITDEPTH];
   YYSTYPE *yyvs = yyvsa;
-  register YYSTYPE *yyvsp;
+  YYSTYPE *yyvsp;
 
 
 

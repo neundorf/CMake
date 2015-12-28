@@ -14,9 +14,9 @@
 #include "cmStandardIncludes.h"
 #include "cmLocalGenerator.h"
 #include "cmGeneratedFileStream.h"
-#include "cmTarget.h"
 #include <cmsys/RegularExpression.hxx>
 
+class cmGeneratorTarget;
 
 /** This class implements writing files for graphviz (dot) for graphs
  * representing the dependencies between the targets in the project. */
@@ -44,45 +44,47 @@ protected:
 
   void WriteHeader(cmGeneratedFileStream& str) const;
 
-  void WriteConnections(const char* targetName,
+  void WriteConnections(const std::string& targetName,
                         std::set<std::string>& insertedNodes,
                         std::set<std::string>& insertedConnections,
                         cmGeneratedFileStream& str) const;
 
-  void WriteDependerConnections(const char* targetName,
+  void WriteDependerConnections(const std::string& targetName,
                                 std::set<std::string>& insertedNodes,
                                 std::set<std::string>& insertedConnections,
                                 cmGeneratedFileStream& str) const;
 
-  void WriteNode(const char* targetName, const cmTarget* target,
+  void WriteNode(const std::string& targetName,
+                 const cmGeneratorTarget* target,
                  std::set<std::string>& insertedNodes,
                  cmGeneratedFileStream& str) const;
 
   void WriteFooter(cmGeneratedFileStream& str) const;
 
-  bool IgnoreThisTarget(const char* name);
+  bool IgnoreThisTarget(const std::string& name);
 
-  bool GenerateForTargetType(cmTarget::TargetType targetType) const;
+  bool GenerateForTargetType(cmState::TargetType targetType) const;
 
-  cmStdString GraphType;
-  cmStdString GraphName;
-  cmStdString GraphHeader;
-  cmStdString GraphNodePrefix;
+  std::string GraphType;
+  std::string GraphName;
+  std::string GraphHeader;
+  std::string GraphNodePrefix;
+
+  std::vector<cmsys::RegularExpression> TargetsToIgnoreRegex;
+
+  const std::vector<cmLocalGenerator*>& LocalGenerators;
+
+  std::map<std::string, const cmGeneratorTarget*> TargetPtrs;
+  // maps from the actual target names to node names in dot:
+  std::map<std::string, std::string> TargetNamesNodes;
 
   bool GenerateForExecutables;
   bool GenerateForStaticLibs;
   bool GenerateForSharedLibs;
   bool GenerateForModuleLibs;
   bool GenerateForExternals;
-
-  std::vector<cmsys::RegularExpression> TargetsToIgnoreRegex;
-
-  const std::vector<cmLocalGenerator*>& LocalGenerators;
-
-  std::map<cmStdString, const cmTarget*> TargetPtrs;
-  // maps from the actual target names to node names in dot:
-  std::map<cmStdString, cmStdString> TargetNamesNodes;
-
+  bool GeneratePerTarget;
+  bool GenerateDependers;
   bool HaveTargetsAndLibs;
 };
 

@@ -1,14 +1,29 @@
+#.rst:
+# FindGit
+# -------
+#
+#
+#
 # The module defines the following variables:
-#   GIT_EXECUTABLE - path to git command line client
-#   GIT_FOUND - true if the command line client was found
+#
+# ::
+#
+#    GIT_EXECUTABLE - path to git command line client
+#    GIT_FOUND - true if the command line client was found
+#    GIT_VERSION_STRING - the version of git found (since CMake 2.8.8)
+#
 # Example usage:
-#   find_package(Git)
-#   if(GIT_FOUND)
-#     message("git found: ${GIT_EXECUTABLE}")
-#   endif()
+#
+# ::
+#
+#    find_package(Git)
+#    if(GIT_FOUND)
+#      message("git found: ${GIT_EXECUTABLE}")
+#    endif()
 
 #=============================================================================
 # Copyright 2010 Kitware, Inc.
+# Copyright 2012 Rolf Eike Beer <eike@sf-mail.de>
 #
 # Distributed under the OSI-approved BSD License (the "License");
 # see accompanying file Copyright.txt for details.
@@ -30,18 +45,39 @@ set(git_names git eg)
 if(WIN32)
   if(NOT CMAKE_GENERATOR MATCHES "MSYS")
     set(git_names git.cmd git eg.cmd eg)
+    # GitHub search path for Windows
+    set(github_path "$ENV{LOCALAPPDATA}/Github/PortableGit*/bin")
+    file(GLOB github_path "${github_path}")
+    # SourceTree search path for Windows
+    set(_git_sourcetree_path "$ENV{LOCALAPPDATA}/Atlassian/SourceTree/git_local/bin")
   endif()
 endif()
 
 find_program(GIT_EXECUTABLE
   NAMES ${git_names}
+  PATHS ${github_path} ${_git_sourcetree_path}
   PATH_SUFFIXES Git/cmd Git/bin
   DOC "git command line client"
   )
 mark_as_advanced(GIT_EXECUTABLE)
 
+unset(_git_sourcetree_path)
+
+if(GIT_EXECUTABLE)
+  execute_process(COMMAND ${GIT_EXECUTABLE} --version
+                  OUTPUT_VARIABLE git_version
+                  ERROR_QUIET
+                  OUTPUT_STRIP_TRAILING_WHITESPACE)
+  if (git_version MATCHES "^git version [0-9]")
+    string(REPLACE "git version " "" GIT_VERSION_STRING "${git_version}")
+  endif()
+  unset(git_version)
+endif()
+
 # Handle the QUIETLY and REQUIRED arguments and set GIT_FOUND to TRUE if
 # all listed variables are TRUE
 
 include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
-find_package_handle_standard_args(Git DEFAULT_MSG GIT_EXECUTABLE)
+find_package_handle_standard_args(Git
+                                  REQUIRED_VARS GIT_EXECUTABLE
+                                  VERSION_VAR GIT_VERSION_STRING)

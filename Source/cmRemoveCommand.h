@@ -25,7 +25,7 @@ public:
   /**
    * This is a virtual constructor for the command.
    */
-  virtual cmCommand* Clone() 
+  virtual cmCommand* Clone()
     {
     return new cmRemoveCommand;
     }
@@ -40,39 +40,13 @@ public:
   /**
    * This determines if the command is invoked when in script mode.
    */
-  virtual bool IsScriptable() { return true; }
+  virtual bool IsScriptable() const { return true; }
 
   /**
    * The name of the command as specified in CMakeList.txt.
    */
-  virtual const char* GetName() {return "remove";}
-  
-  /**
-   * Succinct documentation.
-   */
-  virtual const char* GetTerseDocumentation() 
-    {
-    return "Deprecated. Use the list(REMOVE_ITEM ) command instead.";
-    }
-  
-  /**
-   * More documentation.
-   */
-  virtual const char* GetFullDocumentation()
-    {
-    return
-      "  remove(VAR VALUE VALUE ...)\n"
-      "Removes VALUE from the variable VAR.  "
-      "This is typically used to remove entries from a vector "
-      "(e.g. semicolon separated list).  VALUE is expanded.";
-    }
-  
-  /** This command is kept for compatibility with older CMake versions. */
-  virtual bool IsDiscouraged()
-    {
-    return true;
-    }
-  
+  virtual std::string GetName() const {return "remove";}
+
   cmTypeMacro(cmRemoveCommand, cmCommand);
 };
 

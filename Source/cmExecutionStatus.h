@@ -12,43 +12,47 @@
 #ifndef cmExecutionStatus_h
 #define cmExecutionStatus_h
 
-#include "cmObject.h"
+#include "cmStandardIncludes.h"
 
 /** \class cmExecutionStatus
  * \brief Superclass for all command status classes
  *
  * when a command is involked it may set values on a command status instance
  */
-class cmExecutionStatus : public cmObject
+class cmExecutionStatus
 {
 public:
-  cmTypeMacro(cmExecutionStatus, cmObject);
-  
-  cmExecutionStatus() { this->Clear();};
-  
-  virtual void SetReturnInvoked(bool val) 
+  cmExecutionStatus() { this->Clear(); }
+
+  void SetReturnInvoked(bool val)
   { this->ReturnInvoked = val; }
-  virtual bool GetReturnInvoked()
+  bool GetReturnInvoked()
   { return this->ReturnInvoked; }
-                                 
-  virtual void SetBreakInvoked(bool val) 
+
+  void SetBreakInvoked(bool val)
   { this->BreakInvoked = val; }
-  virtual bool GetBreakInvoked()
+  bool GetBreakInvoked()
   { return this->BreakInvoked; }
-            
-  virtual void Clear()
+
+  void SetContinueInvoked(bool val)
+  { this->ContinueInvoked = val; }
+  bool GetContinueInvoked()
+  { return this->ContinueInvoked; }
+
+  void Clear()
     {
     this->ReturnInvoked = false;
     this->BreakInvoked = false;
+    this->ContinueInvoked = false;
     this->NestedError = false;
     }
-  virtual void SetNestedError(bool val) { this->NestedError = val; }
-  virtual bool GetNestedError() { return this->NestedError; }
+  void SetNestedError(bool val) { this->NestedError = val; }
+  bool GetNestedError() { return this->NestedError; }
 
-                                        
-protected:
+private:
   bool ReturnInvoked;
   bool BreakInvoked;
+  bool ContinueInvoked;
   bool NestedError;
 };
 

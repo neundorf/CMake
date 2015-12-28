@@ -20,7 +20,6 @@ bool cmMessageCommand
     this->SetError("called with incorrect number of arguments");
     return false;
     }
-  std::string message;
   std::vector<std::string>::const_iterator i = args.begin();
 
   cmake::MessageType type = cmake::MESSAGE;
@@ -44,7 +43,15 @@ bool cmMessageCommand
     }
   else if (*i == "AUTHOR_WARNING")
     {
-    type = cmake::AUTHOR_WARNING;
+    if (this->Makefile->GetCMakeInstance()->GetSuppressDevWarnings(
+        this->Makefile))
+      {
+      return true;
+      }
+    else
+      {
+      type = cmake::AUTHOR_WARNING;
+      }
     ++i;
     }
   else if (*i == "STATUS")
@@ -52,15 +59,34 @@ bool cmMessageCommand
     status = true;
     ++i;
     }
-
-  for(;i != args.end(); ++i)
+  else if (*i == "DEPRECATION")
     {
-    message += *i;
+    if (this->Makefile->IsOn("CMAKE_ERROR_DEPRECATED"))
+      {
+      fatal = true;
+      type = cmake::DEPRECATION_ERROR;
+      }
+    else
+      {
+      if (this->Makefile->GetCMakeInstance()->GetSuppressDeprecatedWarnings(
+          this->Makefile))
+        {
+        return true;
+        }
+      else
+        {
+        type = cmake::DEPRECATION_WARNING;
+        }
+      }
+    ++i;
     }
+
+  std::string message = cmJoin(cmMakeRange(i, args.end()), std::string());
 
   if (type != cmake::MESSAGE)
     {
-    this->Makefile->IssueMessage(type, message.c_str());
+    // we've overriden the message type, above, so force IssueMessage to use it
+    this->Makefile->IssueMessage(type, message, true);
     }
   else
     {

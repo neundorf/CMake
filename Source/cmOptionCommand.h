@@ -25,7 +25,7 @@ public:
   /**
    * This is a virtual constructor for the command.
    */
-  virtual cmCommand* Clone() 
+  virtual cmCommand* Clone()
     {
     return new cmOptionCommand;
     }
@@ -40,35 +40,12 @@ public:
   /**
    * The name of the command as specified in CMakeList.txt.
    */
-  virtual const char* GetName() {return "option";}
-  
-  /**
-   * Succinct documentation.
-   */
-  virtual const char* GetTerseDocumentation() 
-    {
-    return "Provides an option that the user can optionally select.";
-    }
-  
-  /**
-   * More documentation.
-   */
-  virtual const char* GetFullDocumentation()
-    {
-    return
-      "  option(<option_variable> \"help string describing option\"\n"
-      "         [initial value])\n"
-      "Provide an option for the user to select as ON or OFF.  If no "
-      "initial value is provided, OFF is used.\n"
-      "If you have options that depend on the values of other "
-      "options, see the module help for CMakeDependentOption."
-      ;
-    }
+  virtual std::string GetName() const {return "option";}
 
   /**
    * This determines if the command is invoked when in script mode.
    */
-  virtual bool IsScriptable() { return true; }
+  virtual bool IsScriptable() const { return true; }
 
   cmTypeMacro(cmOptionCommand, cmCommand);
 };

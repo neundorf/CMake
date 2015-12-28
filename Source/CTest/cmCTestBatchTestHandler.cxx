@@ -33,8 +33,8 @@ void cmCTestBatchTestHandler::WriteBatchScript()
 {
   this->Script = this->CTest->GetBinaryDir()
     + "/Testing/CTestBatch.txt";
-  std::fstream fout;
-  fout.open(this->Script.c_str(), std::ios::out);
+  cmsys::ofstream fout;
+  fout.open(this->Script.c_str());
   fout << "#!/bin/sh\n";
 
   for(TestMap::iterator i = this->Tests.begin(); i != this->Tests.end(); ++i)
@@ -48,7 +48,7 @@ void cmCTestBatchTestHandler::WriteBatchScript()
 }
 
 //---------------------------------------------------------
-void cmCTestBatchTestHandler::WriteSrunArgs(int test, std::fstream& fout)
+void cmCTestBatchTestHandler::WriteSrunArgs(int test, cmsys::ofstream& fout)
 {
   cmCTestTestHandler::cmCTestTestProperties* properties =
       this->Properties[test];
@@ -56,9 +56,9 @@ void cmCTestBatchTestHandler::WriteSrunArgs(int test, std::fstream& fout)
   fout << "srun ";
   //fout << "--jobid=" << test << " ";
   fout << "-J=" << properties->Name << " ";
- 
+
   //Write dependency information
-  /*if(this->Tests[test].size() > 0)
+  /*if(!this->Tests[test].empty())
     {
       fout << "-P=afterany";
       for(TestSet::iterator i = this->Tests[test].begin();
@@ -79,7 +79,7 @@ void cmCTestBatchTestHandler::WriteSrunArgs(int test, std::fstream& fout)
 }
 
 //---------------------------------------------------------
-void cmCTestBatchTestHandler::WriteTestCommand(int test, std::fstream& fout)
+void cmCTestBatchTestHandler::WriteTestCommand(int test, cmsys::ofstream& fout)
 {
   std::vector<std::string> args = this->Properties[test]->Args;
   std::vector<std::string> processArgs;
@@ -89,7 +89,7 @@ void cmCTestBatchTestHandler::WriteTestCommand(int test, std::fstream& fout)
   command = cmSystemTools::ConvertToOutputPath(command.c_str());
 
   //Prepends memcheck args to our command string if this is a memcheck
-  this->TestHandler->GenerateTestCommand(processArgs);
+  this->TestHandler->GenerateTestCommand(processArgs, test);
   processArgs.push_back(command);
 
   for(std::vector<std::string>::iterator arg = processArgs.begin();

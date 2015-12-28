@@ -14,11 +14,11 @@
 #include "cmCursesMainForm.h"
 #include "cmSystemTools.h"
 
-cmCursesPathWidget::cmCursesPathWidget(int width, int height, 
+cmCursesPathWidget::cmCursesPathWidget(int width, int height,
                                            int left, int top) :
   cmCursesStringWidget(width, height, left, top)
 {
-  this->Type = cmCacheManager::PATH;
+  this->Type = cmState::PATH;
   this->Cycle = false;
   this->CurrentIndex = 0;
 }
@@ -57,9 +57,9 @@ void cmCursesPathWidget::OnTab(cmCursesMainForm* fm, WINDOW* w)
     {
     glob = cstr + "*";
     }
-  std::vector<cmStdString> dirs;
+  std::vector<std::string> dirs;
 
-  cmSystemTools::SimpleGlob(glob.c_str(), dirs, (this->Type == cmCacheManager::PATH?-1:0));
+  cmSystemTools::SimpleGlob(glob, dirs, (this->Type == cmState::PATH?-1:0));
   if ( this->CurrentIndex < dirs.size() )
     {
     cstr = dirs[this->CurrentIndex];
@@ -69,14 +69,14 @@ void cmCursesPathWidget::OnTab(cmCursesMainForm* fm, WINDOW* w)
     cstr = cstr.substr(0, cstr.size()-1);
     }
 
-  if ( cmSystemTools::FileIsDirectory(cstr.c_str()) )
+  if ( cmSystemTools::FileIsDirectory(cstr) )
     {
     cstr += "/";
     }
 
-  this->SetString(cstr.c_str());
-  touchwin(w); 
-  wrefresh(w); 
+  this->SetString(cstr);
+  touchwin(w);
+  wrefresh(w);
   form_driver(form, REQ_END_FIELD);
   this->LastGlob = glob;
   this->LastString = cstr;

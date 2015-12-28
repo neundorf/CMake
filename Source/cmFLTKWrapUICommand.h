@@ -28,7 +28,7 @@ public:
   /**
    * This is a virtual constructor for the command.
    */
-  virtual cmCommand* Clone() 
+  virtual cmCommand* Clone()
     {
     return new cmFLTKWrapUICommand;
     }
@@ -39,7 +39,7 @@ public:
    */
   virtual bool InitialPass(std::vector<std::string> const& args,
                            cmExecutionStatus &status);
-  
+
   /**
    * This is called at the end after all the information
    * specified by the command is accumulated. Most commands do
@@ -52,30 +52,8 @@ public:
   /**
    * The name of the command as specified in CMakeList.txt.
    */
-  virtual const char* GetName() { return "fltk_wrap_ui";}
+  virtual std::string GetName() const { return "fltk_wrap_ui";}
 
-  /**
-   * Succinct documentation.
-   */
-  virtual const char* GetTerseDocumentation() 
-    {
-    return "Create FLTK user interfaces Wrappers.";
-    }
-  
-  /**
-   * More documentation.
-   */
-  virtual const char* GetFullDocumentation()
-    {
-    return
-      "  fltk_wrap_ui(resultingLibraryName source1\n"
-      "               source2 ... sourceN )\n"
-      "Produce .h and .cxx files for all the .fl and .fld files listed.  "
-      "The resulting .h and .cxx files will be added to a variable named "
-      "resultingLibraryName_FLTK_UI_SRCS which should be added to your "
-      "library.";
-    }
-  
 private:
   /**
    * List of produced files.
@@ -83,7 +61,7 @@ private:
   std::vector<cmSourceFile *> GeneratedSourcesClasses;
 
   /**
-   * List of Fluid files that provide the source 
+   * List of Fluid files that provide the source
    * generating .cxx and .h files
    */
   std::string Target;

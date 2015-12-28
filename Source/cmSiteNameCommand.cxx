@@ -29,25 +29,25 @@ bool cmSiteNameCommand
   paths.push_back("/bin");
   paths.push_back("/sbin");
   paths.push_back("/usr/local/bin");
-  
+
   const char* cacheValue
-    = this->Makefile->GetDefinition(args[0].c_str());
+    = this->Makefile->GetDefinition(args[0]);
   if(cacheValue)
     {
     return true;
     }
-  
+
   const char *temp = this->Makefile->GetDefinition("HOSTNAME");
   std::string hostname_cmd;
   if(temp)
     {
     hostname_cmd = temp;
     }
-  else 
+  else
     {
     hostname_cmd = cmSystemTools::FindProgram("hostname", paths);
     }
-  
+
   std::string siteName = "unknown";
 #if defined(_WIN32) && !defined(__CYGWIN__)
   std::string host;
@@ -63,10 +63,10 @@ bool cmSiteNameCommand
     {
     std::string host;
     cmSystemTools::RunSingleCommand(hostname_cmd.c_str(),
-      &host, 0, 0, cmSystemTools::OUTPUT_NONE);
-    
+      &host, 0, 0, 0, cmSystemTools::OUTPUT_NONE);
+
     // got the hostname
-    if (host.length())
+    if (!host.empty())
       {
       // remove any white space from the host name
       std::string hostRegExp = "[ \t\n\r]*([^\t\n\r ]*)[ \t\n\r]*";
@@ -77,7 +77,7 @@ bool cmSiteNameCommand
         host = hostReg.match(1);
         }
 
-      if(host.length())
+      if(!host.empty())
         {
         siteName = host;
         }
@@ -85,10 +85,10 @@ bool cmSiteNameCommand
     }
 #endif
   this->Makefile->
-    AddCacheDefinition(args[0].c_str(),
+    AddCacheDefinition(args[0],
                        siteName.c_str(),
                        "Name of the computer/site where compile is being run",
-                       cmCacheManager::STRING);
+                       cmState::STRING);
 
   return true;
 }

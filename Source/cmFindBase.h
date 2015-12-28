@@ -30,45 +30,36 @@ public:
    */
   virtual bool ParseArguments(std::vector<std::string> const& args);
   cmTypeMacro(cmFindBase, cmFindCommon);
-  
-  virtual const char* GetFullDocumentation();
 
 protected:
-  virtual void GenerateDocumentation();
   void PrintFindStuff();
   void ExpandPaths();
-  void AddPathSuffixes();
 
   // see if the VariableName is already set in the cache,
   // also copy the documentation from the cache to VariableDocumentation
   // if it has documentation in the cache
   bool CheckForVariableInCache();
-  
-  cmStdString GenericDocumentation;
+
   // use by command during find
-  cmStdString VariableDocumentation;
-  cmStdString VariableName;
+  std::string VariableDocumentation;
+  std::string VariableName;
   std::vector<std::string> Names;
+  bool NamesPerDir;
+  bool NamesPerDirAllowed;
 
   // CMAKE_*_PATH CMAKE_SYSTEM_*_PATH FRAMEWORK|LIBRARY|INCLUDE|PROGRAM
-  cmStdString EnvironmentPath; // LIB,INCLUDE
+  std::string EnvironmentPath; // LIB,INCLUDE
 
   bool AlreadyInCache;
   bool AlreadyInCacheWithoutMetaInfo;
 private:
   // Add pieces of the search.
-  void AddCMakeEnvironmentPath();
-  void AddCMakeVariablePath();
-  void AddSystemEnvironmentPath();
-  void AddCMakeSystemVariablePath();
-  void AddUserHintsPath();
-  void AddUserGuessPath();
-
-  // Helpers.
-  void AddCMakePrefixPath(const char* variable);
-  void AddEnvPrefixPath(const char* variable);
-  void AddPrefixPaths(std::vector<std::string> const& in_paths,
-                      PathType pathType);
+  void FillCMakeVariablePath();
+  void FillCMakeEnvironmentPath();
+  void FillUserHintsPath();
+  void FillSystemEnvironmentPath();
+  void FillCMakeSystemVariablePath();
+  void FillUserGuessPath();
 };
 
 

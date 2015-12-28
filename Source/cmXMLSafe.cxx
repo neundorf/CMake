@@ -13,8 +13,8 @@
 
 #include "cm_utf8.h"
 
-#include <cmsys/ios/iostream>
-#include <cmsys/ios/sstream>
+#include <iostream>
+#include <sstream>
 
 #include <string.h>
 #include <stdio.h>
@@ -28,7 +28,7 @@ cmXMLSafe::cmXMLSafe(const char* s):
 }
 
 //----------------------------------------------------------------------------
-cmXMLSafe::cmXMLSafe(cmsys_stl::string const& s):
+cmXMLSafe::cmXMLSafe(std::string const& s):
     Data(s.c_str()),
     Size(static_cast<unsigned long>(s.length())),
     DoQuotes(true)
@@ -43,15 +43,15 @@ cmXMLSafe& cmXMLSafe::Quotes(bool b)
 }
 
 //----------------------------------------------------------------------------
-cmsys_stl::string cmXMLSafe::str()
+std::string cmXMLSafe::str()
 {
-  cmsys_ios::ostringstream ss;
+  std::ostringstream ss;
   ss << *this;
   return ss.str();
 }
 
 //----------------------------------------------------------------------------
-cmsys_ios::ostream& operator<<(cmsys_ios::ostream& os, cmXMLSafe const& self)
+std::ostream& operator<<(std::ostream& os, cmXMLSafe const& self)
 {
   char const* first = self.Data;
   char const* last = self.Data + self.Size;

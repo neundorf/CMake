@@ -71,12 +71,12 @@ public:
   cmCTestGenericHandler();
   virtual ~cmCTestGenericHandler();
 
-  typedef std::map<cmStdString,cmStdString> t_StringToString;
+  typedef std::map<std::string,std::string> t_StringToString;
 
-  
-  void SetPersistentOption(const char* op, const char* value);
-  void SetOption(const char* op, const char* value);
-  const char* GetOption(const char* op);
+
+  void SetPersistentOption(const std::string& op, const char* value);
+  void SetOption(const std::string& op, const char* value);
+  const char* GetOption(const std::string& op);
 
   void SetCommand(cmCTestCommand* command)
     {
@@ -87,6 +87,10 @@ public:
   int GetSubmitIndex() { return this->SubmitIndex; }
 
   void SetAppendXML(bool b) { this->AppendXML = b; }
+  void SetQuiet(bool b) { this->Quiet = b; }
+  bool GetQuiet() { return this->Quiet; }
+  void SetTestLoad(unsigned long load) { this->TestLoad = load; }
+  unsigned long GetTestLoad() const { return this->TestLoad;  }
 
 protected:
   bool StartResultingXML(cmCTest::Part part,
@@ -94,6 +98,8 @@ protected:
   bool StartLogFile(const char* name, cmGeneratedFileStream& xofs);
 
   bool AppendXML;
+  bool Quiet;
+  unsigned long TestLoad;
   cmSystemTools::OutputOption HandlerVerbose;
   cmCTest *CTest;
   t_StringToString Options;

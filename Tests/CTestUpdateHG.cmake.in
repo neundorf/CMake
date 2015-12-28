@@ -28,7 +28,10 @@ run_child(
   WORKING_DIRECTORY ${TOP}/repo.hg
   COMMAND ${HG} init
   )
-set(REPO file://${TOP}/repo.hg)
+if(NOT "${TOP}" MATCHES "^/")
+  set(slash /)
+endif()
+set(REPO file://${slash}${TOP}/repo.hg)
 
 #-----------------------------------------------------------------------------
 # Import initial content into the repository.
@@ -67,7 +70,7 @@ if(dirs_added)
     WORKING_DIRECTORY ${TOP}/user-source
     COMMAND ${HG} add ${dirs_added}
     )
-endif(dirs_added)
+endif()
 run_child(
   WORKING_DIRECTORY ${TOP}/user-source
   COMMAND ${HG} add ${files_added}
@@ -161,3 +164,22 @@ execute_process(
 
 # Run the dashboard script with CTest.
 run_dashboard_script(dash-binary)
+
+#-----------------------------------------------------------------------------
+# Test ctest_update(RETURN_VALUE) on failure
+message("Running CTest Dashboard Script (fail to update)...")
+
+set(ctest_update_check [[
+if(NOT ret LESS 0)
+  message(FATAL_ERROR "ctest_update incorrectly succeeded with ${ret}")
+endif()
+]])
+create_dashboard_script(dash-binary-fail
+  "set(CTEST_HG_COMMAND \"update-command-does-not-exist\")
+")
+unset(ctest_update_check)
+
+# Run the dashboard script with CTest.
+set(FAIL_UPDATE 1)
+run_dashboard_script(dash-binary-fail)
+unset(FAIL_UPDATE)

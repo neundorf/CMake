@@ -102,7 +102,7 @@ void cmCPackLog::Log(int tag, const char* file, int line,
     display = true;
     if ( needTagString )
       {
-      if ( tagString.size() > 0 ) { tagString += ","; }
+      if (!tagString.empty()) { tagString += ","; }
       tagString = "VERBOSE";
       }
     }
@@ -112,7 +112,7 @@ void cmCPackLog::Log(int tag, const char* file, int line,
     display = true;
     if ( needTagString )
       {
-      if ( tagString.size() > 0 ) { tagString += ","; }
+      if (!tagString.empty()) { tagString += ","; }
       tagString = "WARNING";
       }
     }
@@ -122,7 +122,7 @@ void cmCPackLog::Log(int tag, const char* file, int line,
     display = true;
     if ( needTagString )
       {
-      if ( tagString.size() > 0 ) { tagString += ","; }
+      if (!tagString.empty()) { tagString += ","; }
       tagString = "ERROR";
       }
     }
@@ -132,7 +132,7 @@ void cmCPackLog::Log(int tag, const char* file, int line,
     display = true;
     if ( needTagString )
       {
-      if ( tagString.size() > 0 ) { tagString += ","; }
+      if (!tagString.empty()) { tagString += ","; }
       tagString = "DEBUG";
       }
     useFileAndLine = true;
@@ -143,7 +143,7 @@ void cmCPackLog::Log(int tag, const char* file, int line,
     display = true;
     if ( needTagString )
       {
-      if ( tagString.size() > 0 ) { tagString += ","; }
+      if (!tagString.empty()) { tagString += ","; }
       tagString = "VERBOSE";
       }
     }
@@ -169,27 +169,27 @@ void cmCPackLog::Log(int tag, const char* file, int line,
     {
     if ( error && !this->ErrorPrefix.empty() )
       {
-      *this->DefaultError << this->ErrorPrefix.c_str();
+      *this->DefaultError << this->ErrorPrefix;
       }
     else if ( warning && !this->WarningPrefix.empty() )
       {
-      *this->DefaultError << this->WarningPrefix.c_str();
+      *this->DefaultError << this->WarningPrefix;
       }
     else if ( output && !this->OutputPrefix.empty() )
       {
-      *this->DefaultOutput << this->OutputPrefix.c_str();
+      *this->DefaultOutput << this->OutputPrefix;
       }
     else if ( verbose && !this->VerbosePrefix.empty() )
       {
-      *this->DefaultOutput << this->VerbosePrefix.c_str();
+      *this->DefaultOutput << this->VerbosePrefix;
       }
     else if ( debug && !this->DebugPrefix.empty() )
       {
-      *this->DefaultOutput << this->DebugPrefix.c_str();
+      *this->DefaultOutput << this->DebugPrefix;
       }
     else if ( !this->Prefix.empty() )
       {
-      *this->DefaultOutput << this->Prefix.c_str();
+      *this->DefaultOutput << this->Prefix;
       }
     if ( useFileAndLine )
       {

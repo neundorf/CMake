@@ -11,7 +11,10 @@
 ============================================================================*/
 #include "cmGetCMakePropertyCommand.h"
 
+#include "cmGlobalGenerator.h"
 #include "cmake.h"
+#include "cmState.h"
+#include "cmAlgorithms.h"
 
 // cmGetCMakePropertyCommand
 bool cmGetCMakePropertyCommand
@@ -23,55 +26,44 @@ bool cmGetCMakePropertyCommand
     return false;
     }
 
-  std::vector<std::string>::size_type cc;
   std::string variable = args[0];
   std::string output = "NOTFOUND";
 
   if ( args[1] == "VARIABLES" )
     {
-    int cacheonly = 0;
-    std::vector<std::string> vars = this->Makefile->GetDefinitions(cacheonly);
-    if (vars.size()>0)
+    if (const char* varsProp = this->Makefile->GetProperty("VARIABLES"))
       {
-      output = vars[0];
-      }
-    for ( cc = 1; cc < vars.size(); ++cc )
-      {
-      output += ";";
-      output += vars[cc];
+      output = varsProp;
       }
     }
   else if ( args[1] == "MACROS" )
     {
-    this->Makefile->GetListOfMacros(output);
+    output.clear();
+    if (const char* macrosProp = this->Makefile->GetProperty("MACROS"))
+      {
+      output = macrosProp;
+      }
     }
   else if ( args[1] == "COMPONENTS" )
     {
-    const std::set<cmStdString>* components
-      = this->Makefile->GetLocalGenerator()->GetGlobalGenerator()
-        ->GetInstallComponents();
-    std::set<cmStdString>::const_iterator compIt;
-    output = "";
-    for (compIt = components->begin(); compIt != components->end(); ++compIt)
-      {
-      if (compIt != components->begin())
-        {
-        output += ";";
-        }
-      output += *compIt;
-      }
+    const std::set<std::string>* components
+      = this->Makefile->GetGlobalGenerator()->GetInstallComponents();
+    output = cmJoin(*components, ";");
     }
   else
     {
-    const char *prop =
-      this->Makefile->GetCMakeInstance()->GetProperty(args[1].c_str());
+    const char *prop = 0;
+    if (!args[1].empty())
+      {
+      prop = this->Makefile->GetState()->GetGlobalProperty(args[1]);
+      }
     if (prop)
       {
       output = prop;
       }
     }
 
-  this->Makefile->AddDefinition(variable.c_str(), output.c_str());
+  this->Makefile->AddDefinition(variable, output.c_str());
 
   return true;
 }

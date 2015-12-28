@@ -22,26 +22,27 @@
 class cmGlobalNMakeMakefileGenerator : public cmGlobalUnixMakefileGenerator3
 {
 public:
-  cmGlobalNMakeMakefileGenerator();
-  static cmGlobalGenerator* New() {
-    return new cmGlobalNMakeMakefileGenerator; }
+  cmGlobalNMakeMakefileGenerator(cmake* cm);
+  static cmGlobalGeneratorFactory* NewFactory() {
+    return new cmGlobalGeneratorSimpleFactory
+      <cmGlobalNMakeMakefileGenerator>(); }
   ///! Get the name for the generator.
-  virtual const char* GetName() const {
+  virtual std::string GetName() const {
     return cmGlobalNMakeMakefileGenerator::GetActualName();}
-  static const char* GetActualName() {return "NMake Makefiles";}
+  static std::string GetActualName() {return "NMake Makefiles";}
 
   /** Get the documentation entry for this generator.  */
-  virtual void GetDocumentation(cmDocumentationEntry& entry) const;
-  
-  ///! Create a local generator appropriate to this Global Generator
-  virtual cmLocalGenerator *CreateLocalGenerator();
+  static void GetDocumentation(cmDocumentationEntry& entry);
 
   /**
-   * Try to determine system infomation such as shared library
-   * extension, pthreads, byte order etc.  
+   * Try to determine system information such as shared library
+   * extension, pthreads, byte order etc.
    */
   virtual void EnableLanguage(std::vector<std::string>const& languages,
                               cmMakefile *, bool optional);
+private:
+  void PrintCompilerAdvice(std::ostream& os, std::string const& lang,
+                           const char* envVar) const;
 };
 
 #endif

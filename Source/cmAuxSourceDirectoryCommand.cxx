@@ -23,14 +23,13 @@ bool cmAuxSourceDirectoryCommand::InitialPass
     this->SetError("called with incorrect number of arguments");
     return false;
     }
-  
+
   std::string sourceListValue;
   std::string templateDirectory = args[0];
-  this->Makefile->AddExtraDirectory(templateDirectory.c_str());
   std::string tdir;
   if(!cmSystemTools::FileIsFullPath(templateDirectory.c_str()))
     {
-    tdir = this->Makefile->GetCurrentDirectory();
+    tdir = this->Makefile->GetCurrentSourceDirectory();
     tdir += "/";
     tdir += templateDirectory;
     }
@@ -40,12 +39,12 @@ bool cmAuxSourceDirectoryCommand::InitialPass
     }
 
   // was the list already populated
-  const char *def = this->Makefile->GetDefinition(args[1].c_str());  
+  const char *def = this->Makefile->GetDefinition(args[1]);
   if (def)
     {
     sourceListValue = def;
     }
-  
+
   // Load all the files in the directory
   cmsys::Directory dir;
   if(dir.Load(tdir.c_str()))
@@ -61,18 +60,18 @@ bool cmAuxSourceDirectoryCommand::InitialPass
         std::string ext = file.substr(dotpos+1);
         std::string base = file.substr(0, dotpos);
         // Process only source files
-        if( base.size() != 0
-            && std::find( this->Makefile->GetSourceExtensions().begin(),
-                          this->Makefile->GetSourceExtensions().end(), ext )
-                 != this->Makefile->GetSourceExtensions().end() )
+        std::vector<std::string> srcExts =
+            this->Makefile->GetCMakeInstance()->GetSourceExtensions();
+        if(!base.empty() &&
+           std::find(srcExts.begin(), srcExts.end(), ext) != srcExts.end())
           {
           std::string fullname = templateDirectory;
           fullname += "/";
           fullname += file;
-          // add the file as a class file so 
+          // add the file as a class file so
           // depends can be done
           cmSourceFile* sf =
-            this->Makefile->GetOrCreateSource(fullname.c_str());
+            this->Makefile->GetOrCreateSource(fullname);
           sf->SetProperty("ABSTRACT","0");
           if(!sourceListValue.empty())
             {
@@ -83,7 +82,7 @@ bool cmAuxSourceDirectoryCommand::InitialPass
         }
       }
     }
-  this->Makefile->AddDefinition(args[1].c_str(), sourceListValue.c_str());  
+  this->Makefile->AddDefinition(args[1], sourceListValue.c_str());
   return true;
 }
 

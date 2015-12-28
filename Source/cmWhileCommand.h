@@ -16,39 +16,31 @@
 #include "cmFunctionBlocker.h"
 #include "cmListFileCache.h"
 
-/** \class cmWhileFunctionBlocker
- * \brief subclass of function blocker
- *
- * 
- */
 class cmWhileFunctionBlocker : public cmFunctionBlocker
 {
 public:
-  cmWhileFunctionBlocker() {this->Depth=0;}
-  virtual ~cmWhileFunctionBlocker() {}
+  cmWhileFunctionBlocker(cmMakefile* mf);
+  ~cmWhileFunctionBlocker();
   virtual bool IsFunctionBlocked(const cmListFileFunction& lff,
                                  cmMakefile &mf,
                                  cmExecutionStatus &);
   virtual bool ShouldRemove(const cmListFileFunction& lff, cmMakefile &mf);
-  
+
   std::vector<cmListFileArgument> Args;
   std::vector<cmListFileFunction> Functions;
 private:
+  cmMakefile* Makefile;
   int Depth;
 };
 
-/** \class cmWhileCommand
- * \brief starts a while loop
- *
- * cmWhileCommand starts a while loop
- */
+/// \brief Starts a while loop
 class cmWhileCommand : public cmCommand
 {
 public:
   /**
    * This is a virtual constructor for the command.
    */
-  virtual cmCommand* Clone() 
+  virtual cmCommand* Clone()
     {
     return new cmWhileCommand;
     }
@@ -59,7 +51,7 @@ public:
    */
   virtual bool InvokeInitialPass(const std::vector<cmListFileArgument>& args,
                                  cmExecutionStatus &);
-    
+
   /**
    * This is called when the command is first encountered in
    * the CMakeLists.txt file.
@@ -70,39 +62,13 @@ public:
   /**
    * This determines if the command is invoked when in script mode.
    */
-  virtual bool IsScriptable() { return true; }
+  virtual bool IsScriptable() const { return true; }
 
   /**
    * The name of the command as specified in CMakeList.txt.
    */
-  virtual const char* GetName() { return "while";}
+  virtual std::string GetName() const { return "while";}
 
-  /**
-   * Succinct documentation.
-   */
-  virtual const char* GetTerseDocumentation() 
-    {
-    return "Evaluate a group of commands while a condition is true";
-    }
-  
-  /**
-   * More documentation.
-   */
-  virtual const char* GetFullDocumentation()
-    {
-    return
-      "  while(condition)\n"
-      "    COMMAND1(ARGS ...)\n"
-      "    COMMAND2(ARGS ...)\n"
-      "    ...\n"
-      "  endwhile(condition)\n"
-      "All commands between while and the matching endwhile are recorded "
-      "without being invoked.  Once the endwhile is evaluated, the "
-      "recorded list of commands is invoked as long as the condition "
-      "is true. The condition is evaluated using the same logic as the "
-      "if command.";
-    }
-  
   cmTypeMacro(cmWhileCommand, cmCommand);
 };
 

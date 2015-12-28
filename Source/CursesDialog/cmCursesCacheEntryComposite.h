@@ -9,18 +9,18 @@
   implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   See the License for more information.
 ============================================================================*/
-#ifndef __cmCursesCacheEntryComposite_h
-#define __cmCursesCacheEntryComposite_h
+#ifndef cmCursesCacheEntryComposite_h
+#define cmCursesCacheEntryComposite_h
 
-#include "../cmCacheManager.h"
 #include "cmCursesLabelWidget.h"
 
 class cmCursesCacheEntryComposite
 {
 public:
-  cmCursesCacheEntryComposite(const char* key, int labelwidth, int entrywidth);
-  cmCursesCacheEntryComposite(const char* key,
-                              const cmCacheManager::CacheIterator& it, 
+  cmCursesCacheEntryComposite(const std::string& key, int labelwidth,
+                              int entrywidth);
+  cmCursesCacheEntryComposite(const std::string& key,
+                              cmake *cm,
                               bool isNew, int labelwidth, int entrywidth);
   ~cmCursesCacheEntryComposite();
   const char* GetValue();
@@ -39,4 +39,4 @@ protected:
   int EntryWidth;
 };
 
-#endif // __cmCursesCacheEntryComposite_h
+#endif // cmCursesCacheEntryComposite_h

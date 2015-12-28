@@ -25,16 +25,16 @@ class cmLocalVisualStudio10Generator : public cmLocalVisualStudio7Generator
 {
 public:
   ///! Set cache only and recurse to false by default.
-  cmLocalVisualStudio10Generator(VSVersion v);
+  cmLocalVisualStudio10Generator(cmGlobalGenerator* gg, cmMakefile* mf);
 
   virtual ~cmLocalVisualStudio10Generator();
 
 
   /**
-   * Generate the makefile for this directory. 
+   * Generate the makefile for this directory.
    */
   virtual void Generate();
-  virtual void ReadAndStoreExternalGUID(const char* name,
+  virtual void ReadAndStoreExternalGUID(const std::string& name,
                                         const char* path);
 
 protected:

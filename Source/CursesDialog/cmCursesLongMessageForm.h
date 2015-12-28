@@ -9,8 +9,8 @@
   implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   See the License for more information.
 ============================================================================*/
-#ifndef __cmCursesLongMessageForm_h
-#define __cmCursesLongMessageForm_h
+#ifndef cmCursesLongMessageForm_h
+#define cmCursesLongMessageForm_h
 
 #include "../cmStandardIncludes.h"
 #include "cmCursesForm.h"
@@ -21,10 +21,10 @@ class cmCursesCacheEntryComposite;
 class cmCursesLongMessageForm : public cmCursesForm
 {
 public:
-  cmCursesLongMessageForm(std::vector<std::string> const& messages, 
+  cmCursesLongMessageForm(std::vector<std::string> const& messages,
                           const char* title);
   virtual ~cmCursesLongMessageForm();
-  
+
   // Description:
   // Handle user input.
   virtual void HandleInput();
@@ -55,4 +55,4 @@ protected:
 
 };
 
-#endif // __cmCursesLongMessageForm_h
+#endif // cmCursesLongMessageForm_h

@@ -14,14 +14,15 @@
 
 # Find the MS assembler (masm or masm64)
 
-SET(ASM_DIALECT "_MASM")
+set(ASM_DIALECT "_MASM")
 
 # if we are using the 64bit cl compiler, assume we also want the 64bit assembler
-IF(CMAKE_CL_64)
-   SET(CMAKE_ASM${ASM_DIALECT}_COMPILER_INIT ml64)
-ELSE(CMAKE_CL_64)
-   SET(CMAKE_ASM${ASM_DIALECT}_COMPILER_INIT ml)
-ENDIF(CMAKE_CL_64)
+if(";${CMAKE_VS_PLATFORM_NAME};${MSVC_C_ARCHITECTURE_ID};${MSVC_CXX_ARCHITECTURE_ID};"
+    MATCHES ";(Win64|Itanium|x64|IA64);")
+   set(CMAKE_ASM${ASM_DIALECT}_COMPILER_INIT ml64)
+else()
+   set(CMAKE_ASM${ASM_DIALECT}_COMPILER_INIT ml)
+endif()
 
-INCLUDE(CMakeDetermineASMCompiler)
-SET(ASM_DIALECT)
+include(CMakeDetermineASMCompiler)
+set(ASM_DIALECT)

@@ -37,12 +37,11 @@
 
 file(READ ${input_file} depend_text)
 
-if (${depend_text} MATCHES ".+")
+if (NOT "${depend_text}" STREQUAL "")
 
   # message("FOUND DEPENDS")
 
-  # Remember, four backslashes is escaped to one backslash in the string.
-  string(REGEX REPLACE "\\\\ " " " depend_text ${depend_text})
+  string(REPLACE "\\ " " " depend_text ${depend_text})
 
   # This works for the nvcc -M generated dependency files.
   string(REGEX REPLACE "^.* : " "" depend_text ${depend_text})
@@ -63,7 +62,7 @@ if (${depend_text} MATCHES ".+")
       if (EXISTS "/${file}")
         set(file "/${file}")
       else()
-        message(WARNING " Removing non-existant dependency file: ${file}")
+        message(WARNING " Removing non-existent dependency file: ${file}")
         set(file "")
       endif()
     endif()
@@ -76,7 +75,7 @@ if (${depend_text} MATCHES ".+")
       list(APPEND dependency_list "${file_absolute}")
     endif()
 
-  endforeach(file)
+  endforeach()
 
 else()
   # message("FOUND NO DEPENDS")

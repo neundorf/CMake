@@ -17,10 +17,6 @@
 #include "cmCTestGenericHandler.h"
 #include "cmListFileCache.h"
 
-#if defined(__sgi) && !defined(__GNUC__)
-# pragma set woff 1375 /* base class destructor not virtual */
-#endif
-
 /** \class cmCTestUpdateHandler
  * \brief A class that handles ctest -S invocations
  *
@@ -44,6 +40,7 @@ public:
     e_BZR,
     e_GIT,
     e_HG,
+    e_P4,
     e_LAST
   };
 
@@ -68,9 +65,5 @@ private:
   int DetectVCS(const char* dir);
   bool SelectVCS();
 };
-
-#if defined(__sgi) && !defined(__GNUC__)
-# pragma reset woff 1375 /* base class destructor not virtual */
-#endif
 
 #endif

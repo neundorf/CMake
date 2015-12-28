@@ -29,7 +29,7 @@ public:
   /**
    * This is a virtual constructor for the command.
    */
-  virtual cmCommand* Clone() 
+  virtual cmCommand* Clone()
     {
     return new cmFindLibraryCommand;
     }
@@ -44,30 +44,29 @@ public:
   /**
    * This determines if the command is invoked when in script mode.
    */
-  virtual bool IsScriptable() { return true; }
+  virtual bool IsScriptable() const { return true; }
 
   /**
    * The name of the command as specified in CMakeList.txt.
    */
-  virtual const char* GetName() {return "find_library";}
+  virtual std::string GetName() const {return "find_library";}
 
-  /**
-   * Succinct documentation.
-   */
-  virtual const char* GetTerseDocumentation() 
-    {
-    return "Find a library.";
-    }
   cmTypeMacro(cmFindLibraryCommand, cmFindBase);
-  
+
 protected:
   void AddArchitecturePaths(const char* suffix);
-  void AddLib64Paths();
+  void AddArchitecturePath(std::string const& dir,
+                           std::string::size_type start_pos,
+                           const char* suffix,
+                           bool fresh = true);
   std::string FindLibrary();
-  virtual void GenerateDocumentation();
 private:
   std::string FindNormalLibrary();
+  std::string FindNormalLibraryNamesPerDir();
+  std::string FindNormalLibraryDirsPerName();
   std::string FindFrameworkLibrary();
+  std::string FindFrameworkLibraryNamesPerDir();
+  std::string FindFrameworkLibraryDirsPerName();
 };
 
 

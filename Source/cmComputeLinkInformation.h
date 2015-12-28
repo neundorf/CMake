@@ -18,9 +18,8 @@
 
 class cmake;
 class cmGlobalGenerator;
-class cmLocalGenerator;
 class cmMakefile;
-class cmTarget;
+class cmGeneratorTarget;
 class cmOrderDirectories;
 
 /** \class cmComputeLinkInformation
@@ -29,7 +28,8 @@ class cmOrderDirectories;
 class cmComputeLinkInformation
 {
 public:
-  cmComputeLinkInformation(cmTarget* target, const char* config);
+  cmComputeLinkInformation(cmGeneratorTarget const* target,
+                           const std::string& config);
   ~cmComputeLinkInformation();
   bool Compute();
 
@@ -38,31 +38,31 @@ public:
     Item(): Value(), IsPath(true), Target(0) {}
     Item(Item const& item):
       Value(item.Value), IsPath(item.IsPath), Target(item.Target) {}
-    Item(std::string const& v, bool p, cmTarget* target = 0):
+    Item(std::string const& v, bool p, cmGeneratorTarget const* target = 0):
       Value(v), IsPath(p), Target(target) {}
     std::string Value;
     bool IsPath;
-    cmTarget* Target;
+    cmGeneratorTarget const* Target;
   };
   typedef std::vector<Item> ItemVector;
   ItemVector const& GetItems();
   std::vector<std::string> const& GetDirectories();
   std::vector<std::string> const& GetDepends();
   std::vector<std::string> const& GetFrameworkPaths();
-  const char* GetLinkLanguage() const { return this->LinkLanguage; }
+  std::string GetLinkLanguage() const { return this->LinkLanguage; }
   std::vector<std::string> const& GetRuntimeSearchPath();
   std::string const& GetRuntimeFlag() const { return this->RuntimeFlag; }
   std::string const& GetRuntimeSep() const { return this->RuntimeSep; }
   void GetRPath(std::vector<std::string>& runtimeDirs, bool for_install);
   std::string GetRPathString(bool for_install);
   std::string GetChrpathString();
-  std::set<cmTarget*> const& GetSharedLibrariesLinked();
+  std::set<cmGeneratorTarget const*> const& GetSharedLibrariesLinked();
 
   std::string const& GetRPathLinkFlag() const { return this->RPathLinkFlag; }
   std::string GetRPathLinkString();
 private:
-  void AddItem(std::string const& item, cmTarget* tgt);
-  void AddSharedDepItem(std::string const& item, cmTarget* tgt);
+  void AddItem(std::string const& item, const cmGeneratorTarget* tgt);
+  void AddSharedDepItem(std::string const& item, cmGeneratorTarget const* tgt);
 
   // Output information.
   ItemVector Items;
@@ -70,18 +70,17 @@ private:
   std::vector<std::string> Depends;
   std::vector<std::string> FrameworkPaths;
   std::vector<std::string> RuntimeSearchPath;
-  std::set<cmTarget*> SharedLibrariesLinked;
+  std::set<cmGeneratorTarget const*> SharedLibrariesLinked;
 
   // Context information.
-  cmTarget* Target;
+  cmGeneratorTarget const* Target;
   cmMakefile* Makefile;
-  cmLocalGenerator* LocalGenerator;
   cmGlobalGenerator* GlobalGenerator;
   cmake* CMakeInstance;
 
   // Configuration information.
-  const char* Config;
-  const char* LinkLanguage;
+  std::string Config;
+  std::string LinkLanguage;
 
   // Modes for dealing with dependent shared libraries.
   enum SharedDepMode
@@ -92,8 +91,6 @@ private:
     SharedDepModeLink    // List file on link line
   };
 
-  // System info.
-  bool UseImportLibrary;
   const char* LoaderFlag;
   std::string LibLinkFlag;
   std::string LibLinkFileFlag;
@@ -101,40 +98,37 @@ private:
   std::string RuntimeFlag;
   std::string RuntimeSep;
   std::string RuntimeAlways;
-  bool RuntimeUseChrpath;
-  bool NoSONameUsesPath;
-  bool LinkWithRuntimePath;
   std::string RPathLinkFlag;
   SharedDepMode SharedDependencyMode;
 
+  enum LinkType { LinkUnknown, LinkStatic, LinkShared };
+  void SetCurrentLinkType(LinkType lt);
+
   // Link type adjustment.
   void ComputeLinkTypeInfo();
-  enum LinkType { LinkUnknown, LinkStatic, LinkShared };
   LinkType StartLinkType;
   LinkType CurrentLinkType;
   std::string StaticLinkTypeFlag;
   std::string SharedLinkTypeFlag;
-  bool LinkTypeEnabled;
-  void SetCurrentLinkType(LinkType lt);
-  bool ArchivesMayBeShared;
 
   // Link item parsing.
   void ComputeItemParserInfo();
   std::vector<std::string> StaticLinkExtensions;
   std::vector<std::string> SharedLinkExtensions;
   std::vector<std::string> LinkExtensions;
-  std::set<cmStdString> LinkPrefixes;
+  std::set<std::string> LinkPrefixes;
   cmsys::RegularExpression ExtractStaticLibraryName;
   cmsys::RegularExpression ExtractSharedLibraryName;
   cmsys::RegularExpression ExtractAnyLibraryName;
   std::string SharedRegexString;
   void AddLinkPrefix(const char* p);
   void AddLinkExtension(const char* e, LinkType type);
-  std::string CreateExtensionRegex(std::vector<std::string> const& exts);
+  std::string CreateExtensionRegex(std::vector<std::string> const& exts,
+                                   LinkType type);
   std::string NoCaseExpression(const char* str);
 
   // Handling of link items.
-  void AddTargetItem(std::string const& item, cmTarget* target);
+  void AddTargetItem(std::string const& item, const cmGeneratorTarget* target);
   void AddFullItem(std::string const& item);
   bool CheckImplicitDirItem(std::string const& item);
   void AddUserItem(std::string const& item, bool pathNotKnown);
@@ -148,7 +142,7 @@ private:
   // Framework info.
   void ComputeFrameworkInfo();
   void AddFrameworkPath(std::string const& p);
-  std::set<cmStdString> FrameworkPathsEmmitted;
+  std::set<std::string> FrameworkPathsEmmitted;
   cmsys::RegularExpression SplitFramework;
 
   // Linker search path computation.
@@ -160,25 +154,37 @@ private:
   void LoadImplicitLinkInfo();
   void AddImplicitLinkInfo();
   void AddImplicitLinkInfo(std::string const& lang);
-  std::set<cmStdString> ImplicitLinkDirs;
-  std::set<cmStdString> ImplicitLinkLibs;
+  std::set<std::string> ImplicitLinkDirs;
+  std::set<std::string> ImplicitLinkLibs;
 
   // Additional paths configured by the runtime linker
   std::vector<std::string> RuntimeLinkDirs;
 
   // Linker search path compatibility mode.
-  std::set<cmStdString> OldLinkDirMask;
+  std::set<std::string> OldLinkDirMask;
   std::vector<std::string> OldLinkDirItems;
   std::vector<std::string> OldUserFlagItems;
-  bool OldLinkDirMode;
-
-  // Runtime path computation.
-  cmOrderDirectories* OrderRuntimeSearchPath;
-  void AddLibraryRuntimeInfo(std::string const& fullPath, cmTarget* target);
-  void AddLibraryRuntimeInfo(std::string const& fullPath);
-
+  std::set<std::string> CMP0060WarnItems;
   // Dependent library path computation.
   cmOrderDirectories* OrderDependentRPath;
+  // Runtime path computation.
+  cmOrderDirectories* OrderRuntimeSearchPath;
+
+  bool OldLinkDirMode;
+  bool OpenBSD;
+  bool LinkDependsNoShared;
+  bool UseImportLibrary;
+  bool RuntimeUseChrpath;
+  bool NoSONameUsesPath;
+  bool LinkWithRuntimePath;
+  bool LinkTypeEnabled;
+  bool ArchivesMayBeShared;
+  bool CMP0060Warn;
+
+  void AddLibraryRuntimeInfo(std::string const& fullPath,
+                             const cmGeneratorTarget* target);
+  void AddLibraryRuntimeInfo(std::string const& fullPath);
+
 };
 
 #endif

@@ -13,6 +13,7 @@
 
 #include "cmSystemTools.h"
 #include "cmDependsJavaLexer.h"
+#include <cmsys/FStream.hxx>
 
 int cmDependsJava_yyparse( yyscan_t yyscanner );
 
@@ -35,10 +36,10 @@ cmDependsJavaParserHelper::~cmDependsJavaParserHelper()
 }
 
 void cmDependsJavaParserHelper::CurrentClass
-::AddFileNamesForPrinting(std::vector<cmStdString> *files, 
+::AddFileNamesForPrinting(std::vector<std::string> *files,
                           const char* prefix, const char* sep)
 {
-  cmStdString rname = "";
+  std::string rname = "";
   if ( prefix )
     {
     rname += prefix;
@@ -75,7 +76,7 @@ void cmDependsJavaParserHelper::AddClassFound(const char* sclass)
     {
     return;
     }
-  std::vector<cmStdString>::iterator it;
+  std::vector<std::string>::iterator it;
   for ( it = this->ClassesFound.begin();
     it != this->ClassesFound.end();
     it ++ )
@@ -90,7 +91,7 @@ void cmDependsJavaParserHelper::AddClassFound(const char* sclass)
 
 void cmDependsJavaParserHelper::AddPackagesImport(const char* sclass)
 {
-  std::vector<cmStdString>::iterator it;
+  std::vector<std::string>::iterator it;
   for ( it = this->PackagesImport.begin();
     it != this->PackagesImport.end();
     it ++ )
@@ -103,7 +104,7 @@ void cmDependsJavaParserHelper::AddPackagesImport(const char* sclass)
   this->PackagesImport.push_back(sclass);
 }
 
-void cmDependsJavaParserHelper::SafePrintMissing(const char* str, 
+void cmDependsJavaParserHelper::SafePrintMissing(const char* str,
                                                  int line, int cnt)
 {
   if ( str )
@@ -134,7 +135,7 @@ void cmDependsJavaParserHelper::Print(const char* place, const char* str)
     }
 }
 
-void cmDependsJavaParserHelper::CombineUnions(char** out, 
+void cmDependsJavaParserHelper::CombineUnions(char** out,
                                               const char* in1, char** in2,
                                               const char* sep)
 {
@@ -193,7 +194,7 @@ void cmDependsJavaParserHelper
 }
 
 void cmDependsJavaParserHelper
-::AllocateParserType(cmDependsJavaParserHelper::ParserType* pt, 
+::AllocateParserType(cmDependsJavaParserHelper::ParserType* pt,
                      const char* str, int len)
 {
   pt->str = 0;
@@ -225,7 +226,7 @@ void cmDependsJavaParserHelper::EndClass()
 {
   CurrentClass* parent = 0;
   CurrentClass* current = 0;
-  if ( this->ClassStack.size() > 0 )
+  if (!this->ClassStack.empty())
     {
     current = &(*(this->ClassStack.end() - 1));
     if ( this->ClassStack.size() > 1 )
@@ -250,27 +251,27 @@ void cmDependsJavaParserHelper::EndClass()
 
 void cmDependsJavaParserHelper::PrintClasses()
 {
-  if ( this->ClassStack.size() == 0 )
+  if (this->ClassStack.empty())
     {
     std::cerr << "Error when parsing. No classes on class stack" << std::endl;
     abort();
     }
-  std::vector<cmStdString> files = this->GetFilesProduced();
-  std::vector<cmStdString>::iterator sit;
+  std::vector<std::string> files = this->GetFilesProduced();
+  std::vector<std::string>::iterator sit;
   for ( sit = files.begin();
     sit != files.end();
     ++ sit )
     {
-    std::cout << "  " << sit->c_str() << ".class" << std::endl;
+    std::cout << "  " << *sit << ".class" << std::endl;
     }
 }
 
-std::vector<cmStdString> cmDependsJavaParserHelper::GetFilesProduced()
+std::vector<std::string> cmDependsJavaParserHelper::GetFilesProduced()
 {
-  std::vector<cmStdString> files;
+  std::vector<std::string> files;
   CurrentClass* toplevel = &(*(this->ClassStack.begin()));
   std::vector<CurrentClass>::iterator it;
-  for ( it = toplevel->NestedClasses->begin(); 
+  for ( it = toplevel->NestedClasses->begin();
     it != toplevel->NestedClasses->end();
     ++ it )
     {
@@ -289,7 +290,7 @@ int cmDependsJavaParserHelper::ParseString(const char* str, int verb)
   this->InputBuffer = str;
   this->InputBufferPos = 0;
   this->CurrentLine = 0;
-  
+
 
   yyscan_t yyscanner;
   cmDependsJava_yylex_init(&yyscanner);
@@ -304,32 +305,32 @@ int cmDependsJavaParserHelper::ParseString(const char* str, int verb)
 
   if ( verb )
     {
-    if ( this->CurrentPackage.size() > 0 )
+    if (!this->CurrentPackage.empty())
       {
-      std::cout << "Current package is: " << 
-        this->CurrentPackage.c_str() << std::endl;
+      std::cout << "Current package is: " <<
+        this->CurrentPackage << std::endl;
       }
     std::cout << "Imports packages:";
-    if ( this->PackagesImport.size() > 0 )
+    if (!this->PackagesImport.empty())
       {
-      std::vector<cmStdString>::iterator it;
+      std::vector<std::string>::iterator it;
       for ( it = this->PackagesImport.begin();
         it != this->PackagesImport.end();
         ++ it )
         {
-        std::cout << " " << it->c_str();
+        std::cout << " " << *it;
         }
       }
     std::cout << std::endl;
     std::cout << "Depends on:";
-    if ( this->ClassesFound.size() > 0 )
+    if (!this->ClassesFound.empty())
       {
-      std::vector<cmStdString>::iterator it;
+      std::vector<std::string>::iterator it;
       for ( it = this->ClassesFound.begin();
         it != this->ClassesFound.end();
         ++ it )
         {
-        std::cout << " " << it->c_str();
+        std::cout << " " << *it;
         }
       }
     std::cout << std::endl;
@@ -337,7 +338,7 @@ int cmDependsJavaParserHelper::ParseString(const char* str, int verb)
     this->PrintClasses();
     if ( this->UnionsAvailable != 0 )
       {
-      std::cout << "There are still " << 
+      std::cout << "There are still " <<
         this->UnionsAvailable << " unions available" << std::endl;
       }
     }
@@ -348,13 +349,13 @@ int cmDependsJavaParserHelper::ParseString(const char* str, int verb)
 void cmDependsJavaParserHelper::CleanupParser()
 {
   std::vector<char*>::iterator it;
-  for ( it = this->Allocates.begin(); 
+  for ( it = this->Allocates.begin();
     it != this->Allocates.end();
     ++ it )
     {
     delete [] *it;
     }
-  this->Allocates.erase(this->Allocates.begin(), 
+  this->Allocates.erase(this->Allocates.begin(),
     this->Allocates.end());
 }
 
@@ -382,11 +383,11 @@ int cmDependsJavaParserHelper::LexInput(char* buf, int maxlen)
 void cmDependsJavaParserHelper::Error(const char* str)
 {
   unsigned long pos = static_cast<unsigned long>(this->InputBufferPos);
-  fprintf(stderr, "JPError: %s (%lu / Line: %d)\n", 
+  fprintf(stderr, "JPError: %s (%lu / Line: %d)\n",
           str, pos, this->CurrentLine);
   int cc;
   std::cerr << "String: [";
-  for ( cc = 0; 
+  for ( cc = 0;
         cc < 30 && *(this->InputBuffer.c_str() + this->InputBufferPos + cc);
         cc ++ )
     {
@@ -395,7 +396,7 @@ void cmDependsJavaParserHelper::Error(const char* str)
   std::cerr << "]" << std::endl;
 }
 
-void cmDependsJavaParserHelper::UpdateCombine(const char* str1, 
+void cmDependsJavaParserHelper::UpdateCombine(const char* str1,
                                               const char* str2)
 {
   if ( this->CurrentCombine == "" && str1 != 0)
@@ -412,14 +413,14 @@ int cmDependsJavaParserHelper::ParseFile(const char* file)
     {
     return 0;
     }
-  std::ifstream ifs(file);
+  cmsys::ifstream ifs(file);
   if ( !ifs )
     {
     return 0;
     }
 
-  cmStdString fullfile = "";
-  cmStdString line;
+  std::string fullfile = "";
+  std::string line;
   while ( cmSystemTools::GetLineFromStream(ifs, line) )
     {
     fullfile += line + "\n";

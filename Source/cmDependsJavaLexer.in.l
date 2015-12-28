@@ -20,6 +20,7 @@ Run flex like this:
 
 Modify cmDependsJavaLexer.c:
   - remove TABs
+  - remove use of the 'register' storage class specifier
   - remove "yyscanner" argument from these methods:
       yy_fatal_error, cmDependsJava_yyalloc, cmDependsJava_yyrealloc, cmDependsJava_yyfree
   - remove all YY_BREAK lines occurring right after return statements
@@ -171,18 +172,18 @@ null { PRIMITIVE; return jp_NULLLITERAL; }
 "\*" { SYMBOL; return jp_TIMES; }
 "\*=" { SYMBOL; return jp_TIMESEQUALS; }
 
-[a-z_A-Z][a-z_0-9A-Z]* { 
-  yyextra->AllocateParserType(yylvalp, yytext, strlen(yytext)); 
-  return jp_NAME; 
+[a-z_A-Z][a-z_0-9A-Z]* {
+  yyextra->AllocateParserType(yylvalp, yytext, strlen(yytext));
+  return jp_NAME;
 }
 
 \/\/.*\n { }
 [ \f\t\n\r] { }
-. 	{ 
-  std::cerr << "Unknown character: " << yytext[0] 
-    << " (" << (int)yytext[0] << ")" << std::endl; 
-  yyextra->Error("Unknown character"); 
-  return jp_ERROR; 
+. 	{
+  std::cerr << "Unknown character: " << yytext[0]
+    << " (" << (int)yytext[0] << ")" << std::endl;
+  yyextra->Error("Unknown character");
+  return jp_ERROR;
 }
 
 %%

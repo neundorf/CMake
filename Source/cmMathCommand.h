@@ -14,17 +14,14 @@
 
 #include "cmCommand.h"
 
-/** \class cmMathCommand
- * \brief Common string operations
- *
- */
+/// Mathematical expressions: math(EXPR ...) command.
 class cmMathCommand : public cmCommand
 {
 public:
   /**
    * This is a virtual constructor for the command.
    */
-  virtual cmCommand* Clone() 
+  virtual cmCommand* Clone()
     {
     return new cmMathCommand;
     }
@@ -39,38 +36,16 @@ public:
   /**
    * This determines if the command is invoked when in script mode.
    */
-  virtual bool IsScriptable() { return true; }
+  virtual bool IsScriptable() const { return true; }
 
   /**
    * The name of the command as specified in CMakeList.txt.
    */
-  virtual const char* GetName() { return "math";}
+  virtual std::string GetName() const { return "math";}
 
-  /**
-   * Succinct documentation.
-   */
-  virtual const char* GetTerseDocumentation() 
-    {
-    return "Mathematical expressions.";
-    }
-  
-  /**
-   * More documentation.
-   */
-  virtual const char* GetFullDocumentation()
-    {
-    return
-      "  math(EXPR <output variable> <math expression>)\n"
-      "EXPR evaluates mathematical expression and return result in the "
-      "output variable. Example mathematical expression is "
-      "'5 * ( 10 + 13 )'.  Supported operators are "
-      "+ - * / % | & ^ ~ << >> * / %.  They have the same meaning "
-      " as they do in c code.";
-    }
-  
   cmTypeMacro(cmMathCommand, cmCommand);
 protected:
- 
+
   bool HandleExprCommand(std::vector<std::string> const& args);
 };
 

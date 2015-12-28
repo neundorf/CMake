@@ -57,14 +57,16 @@ if("${_help}" MATCHES "GNU ld .* 2\\.1[1-6]")
   set(__WINDOWS_GNU_LD_RESPONSE 0)
 endif()
 
-enable_language(RC)
+if(NOT CMAKE_GENERATOR_RC AND CMAKE_GENERATOR MATCHES "Unix Makefiles")
+  set(CMAKE_GENERATOR_RC windres)
+endif()
 
 macro(__windows_compiler_gnu lang)
 
   if(MSYS OR MINGW)
     # Create archiving rules to support large object file lists for static libraries.
-    set(CMAKE_${lang}_ARCHIVE_CREATE "<CMAKE_AR> cr <TARGET> <LINK_FLAGS> <OBJECTS>")
-    set(CMAKE_${lang}_ARCHIVE_APPEND "<CMAKE_AR> r  <TARGET> <LINK_FLAGS> <OBJECTS>")
+    set(CMAKE_${lang}_ARCHIVE_CREATE "<CMAKE_AR> qc <TARGET> <LINK_FLAGS> <OBJECTS>")
+    set(CMAKE_${lang}_ARCHIVE_APPEND "<CMAKE_AR> q  <TARGET> <LINK_FLAGS> <OBJECTS>")
     set(CMAKE_${lang}_ARCHIVE_FINISH "<CMAKE_RANLIB> <TARGET>")
 
     # Initialize C link type selection flags.  These flags are used when
@@ -74,11 +76,16 @@ macro(__windows_compiler_gnu lang)
     foreach(type SHARED_LIBRARY SHARED_MODULE EXE)
       set(CMAKE_${type}_LINK_STATIC_${lang}_FLAGS "-Wl,-Bstatic")
       set(CMAKE_${type}_LINK_DYNAMIC_${lang}_FLAGS "-Wl,-Bdynamic")
-    endforeach(type)
+    endforeach()
   endif()
 
-  set(CMAKE_SHARED_LIBRARY_${lang}_FLAGS "") # No -fPIC on Windows
+  # No -fPIC on Windows
+  set(CMAKE_${lang}_COMPILE_OPTIONS_PIC "")
+  set(CMAKE_${lang}_COMPILE_OPTIONS_PIE "")
+  set(CMAKE_SHARED_LIBRARY_${lang}_FLAGS "")
+
   set(CMAKE_${lang}_USE_RESPONSE_FILE_FOR_OBJECTS ${__WINDOWS_GNU_LD_RESPONSE})
+  set(CMAKE_${lang}_USE_RESPONSE_FILE_FOR_LIBRARIES ${__WINDOWS_GNU_LD_RESPONSE})
   set(CMAKE_${lang}_USE_RESPONSE_FILE_FOR_INCLUDES 1)
 
   # We prefer "@" for response files but it is not supported by gcc 3.
@@ -95,23 +102,27 @@ macro(__windows_compiler_gnu lang)
     endif()
     # The GNU 3.x compilers do not support response files (only linkers).
     set(CMAKE_${lang}_USE_RESPONSE_FILE_FOR_INCLUDES 0)
-  elseif(CMAKE_${lang}_USE_RESPONSE_FILE_FOR_OBJECTS)
+    # Link libraries are generated only for the front-end.
+    set(CMAKE_${lang}_USE_RESPONSE_FILE_FOR_LIBRARIES 0)
+  else()
     # Use "@" to pass the response file to the front-end.
     set(CMAKE_${lang}_RESPONSE_FILE_LINK_FLAG "@")
   endif()
 
   # Binary link rules.
   set(CMAKE_${lang}_CREATE_SHARED_MODULE
-    "<CMAKE_${lang}_COMPILER> <CMAKE_SHARED_MODULE_${lang}_FLAGS> <LINK_FLAGS> <CMAKE_SHARED_MODULE_CREATE_${lang}_FLAGS> -o <TARGET> ${CMAKE_GNULD_IMAGE_VERSION} <OBJECTS> <LINK_LIBRARIES>")
+    "<CMAKE_${lang}_COMPILER> <CMAKE_SHARED_MODULE_${lang}_FLAGS> <LANGUAGE_COMPILE_FLAGS> <LINK_FLAGS> <CMAKE_SHARED_MODULE_CREATE_${lang}_FLAGS> -o <TARGET> ${CMAKE_GNULD_IMAGE_VERSION} <OBJECTS> <LINK_LIBRARIES>")
   set(CMAKE_${lang}_CREATE_SHARED_LIBRARY
-    "<CMAKE_${lang}_COMPILER> <CMAKE_SHARED_LIBRARY_${lang}_FLAGS> <LINK_FLAGS> <CMAKE_SHARED_LIBRARY_CREATE_${lang}_FLAGS> -o <TARGET> -Wl,--out-implib,<TARGET_IMPLIB> ${CMAKE_GNULD_IMAGE_VERSION} <OBJECTS> <LINK_LIBRARIES>")
+    "<CMAKE_${lang}_COMPILER> <CMAKE_SHARED_LIBRARY_${lang}_FLAGS> <LANGUAGE_COMPILE_FLAGS> <LINK_FLAGS> <CMAKE_SHARED_LIBRARY_CREATE_${lang}_FLAGS> -o <TARGET> -Wl,--out-implib,<TARGET_IMPLIB> ${CMAKE_GNULD_IMAGE_VERSION} <OBJECTS> <LINK_LIBRARIES>")
   set(CMAKE_${lang}_LINK_EXECUTABLE
     "<CMAKE_${lang}_COMPILER> <FLAGS> <CMAKE_${lang}_LINK_FLAGS> <LINK_FLAGS> <OBJECTS>  -o <TARGET> -Wl,--out-implib,<TARGET_IMPLIB> ${CMAKE_GNULD_IMAGE_VERSION} <LINK_LIBRARIES>")
 
   list(APPEND CMAKE_${lang}_ABI_FILES "Platform/Windows-GNU-${lang}-ABI")
 
   # Support very long lists of object files.
-  if("${CMAKE_${lang}_RESPONSE_FILE_LINK_FLAG}" STREQUAL "@")
+  # TODO: check for which gcc versions this is still needed, not needed for gcc >= 4.4.
+  # Ninja generator doesn't support this work around.
+  if("${CMAKE_${lang}_RESPONSE_FILE_LINK_FLAG}" STREQUAL "@" AND NOT CMAKE_GENERATOR MATCHES "Ninja")
     foreach(rule CREATE_SHARED_MODULE CREATE_SHARED_LIBRARY LINK_EXECUTABLE)
       # The gcc/collect2/ld toolchain does not use response files
       # internally so we cannot pass long object lists.  Instead pass
@@ -126,6 +137,12 @@ macro(__windows_compiler_gnu lang)
         )
     endforeach()
   endif()
+
+  if(NOT CMAKE_RC_COMPILER_INIT AND NOT CMAKE_GENERATOR_RC)
+    set(CMAKE_RC_COMPILER_INIT windres)
+  endif()
+
+  enable_language(RC)
 endmacro()
 
 macro(__windows_compiler_gnu_abi lang)
@@ -141,6 +158,7 @@ macro(__windows_compiler_gnu_abi lang)
       find_program(CMAKE_GNUtoMS_VCVARS NAMES vcvars32.bat
         DOC "Visual Studio vcvars32.bat"
         PATHS
+        "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\12.0\\Setup\\VC;ProductDir]/bin"
         "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\11.0\\Setup\\VC;ProductDir]/bin"
         "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\10.0\\Setup\\VC;ProductDir]/bin"
         "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\9.0\\Setup\\VC;ProductDir]/bin"
@@ -150,9 +168,10 @@ macro(__windows_compiler_gnu_abi lang)
         )
       set(CMAKE_GNUtoMS_ARCH x86)
     elseif("${CMAKE_SIZEOF_VOID_P}" EQUAL 8)
-      find_program(CMAKE_GNUtoMS_VCVARS NAMES vcvarsamd64.bat
+      find_program(CMAKE_GNUtoMS_VCVARS NAMES vcvars64.bat vcvarsamd64.bat
         DOC "Visual Studio vcvarsamd64.bat"
         PATHS
+        "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\12.0\\Setup\\VC;ProductDir]/bin/amd64"
         "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\11.0\\Setup\\VC;ProductDir]/bin/amd64"
         "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\10.0\\Setup\\VC;ProductDir]/bin/amd64"
         "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\9.0\\Setup\\VC;ProductDir]/bin/amd64"

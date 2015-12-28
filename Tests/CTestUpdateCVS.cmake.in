@@ -18,6 +18,19 @@ set(CVS "@CVS_EXECUTABLE@")
 message(" cvs = ${CVS}")
 
 set(REPO ${TOP}/repo)
+
+# The MSYS cvs tool interprets "c:/" as a "machine:" name for SSH.
+# Detect the MSYS cvs and convert the repo path to an MSYS path.
+if(WIN32)
+  if(EXISTS "${CVS}")
+    file(STRINGS "${CVS}" cvs_is_msys LIMIT_COUNT 1 REGEX "[Mm][Ss][Yy][Ss]")
+    if(cvs_is_msys)
+      message("  '${CVS}' is from MSYS (contains '${cvs_is_msys}')")
+      string(REGEX REPLACE "^([A-Za-z]):" "/\\1" REPO "${REPO}")
+    endif()
+  endif()
+endif()
+
 set(CVSCMD ${CVS} -d${REPO})
 
 # CVSNT requires an extra option to 'cvs init'.
@@ -78,7 +91,7 @@ if(dirs_added)
     WORKING_DIRECTORY ${TOP}/user-source
     COMMAND ${CVSCMD} add ${dirs_added}
     )
-endif(dirs_added)
+endif()
 run_child(
   WORKING_DIRECTORY ${TOP}/user-source
   COMMAND ${CVSCMD} add ${files_added}
@@ -157,3 +170,22 @@ set(CTEST_CHECKOUT_COMMAND
 
 # Run the dashboard script with CTest.
 run_dashboard_script(dash-binary)
+
+#-----------------------------------------------------------------------------
+# Test ctest_update(RETURN_VALUE) on failure
+message("Running CTest Dashboard Script (fail to update)...")
+
+set(ctest_update_check [[
+if(NOT ret LESS 0)
+  message(FATAL_ERROR "ctest_update incorrectly succeeded with ${ret}")
+endif()
+]])
+create_dashboard_script(dash-binary-fail
+  "set(CTEST_CVS_COMMAND \"update-command-does-not-exist\")
+")
+unset(ctest_update_check)
+
+# Run the dashboard script with CTest.
+set(FAIL_UPDATE 1)
+run_dashboard_script(dash-binary-fail)
+unset(FAIL_UPDATE)

@@ -104,11 +104,11 @@ void kwsysTerminal_cfprintf(int color, FILE* stream, const char* format, ...)
 }
 
 /*--------------------------------------------------------------------------*/
-/* Detect cases when a stream is definately not interactive.  */
+/* Detect cases when a stream is definitely not interactive.  */
 #if !defined(KWSYS_TERMINAL_ISATTY_WORKS)
 static int kwsysTerminalStreamIsNotInteractive(FILE* stream)
 {
-  /* The given stream is definately not interactive if it is a regular
+  /* The given stream is definitely not interactive if it is a regular
      file.  */
   struct stat stream_stat;
   if(fstat(fileno(stream), &stream_stat) == 0)
@@ -155,6 +155,7 @@ static const char* kwsysTerminalVT100Names[] =
   "mach-color",
   "mlterm",
   "putty",
+  "putty-256color",
   "rxvt",
   "rxvt-256color",
   "rxvt-cygwin",
@@ -174,6 +175,7 @@ static const char* kwsysTerminalVT100Names[] =
   "xterm-88color",
   "xterm-color",
   "xterm-debian",
+  "xterm-termite",
   0
 };
 
@@ -182,14 +184,25 @@ static const char* kwsysTerminalVT100Names[] =
 static int kwsysTerminalStreamIsVT100(FILE* stream, int default_vt100,
                                       int default_tty)
 {
+  /* Force color according to http://bixense.com/clicolors/ convention.  */
+  {
+  const char* clicolor_force = getenv("CLICOLOR_FORCE");
+  if (clicolor_force && *clicolor_force && strcmp(clicolor_force, "0") != 0)
+    {
+    return 1;
+    }
+  }
+
   /* If running inside emacs the terminal is not VT100.  Some emacs
      seem to claim the TERM is xterm even though they do not support
      VT100 escapes.  */
+  {
   const char* emacs = getenv("EMACS");
   if(emacs && *emacs == 't')
     {
     return 0;
     }
+  }
 
   /* Check for a valid terminal.  */
   if(!default_vt100)
@@ -211,7 +224,7 @@ static int kwsysTerminalStreamIsVT100(FILE* stream, int default_vt100,
   (void)default_tty;
   return isatty(fileno(stream))? 1:0;
 #else
-  /* Check for cases in which the stream is definately not a tty.  */
+  /* Check for cases in which the stream is definitely not a tty.  */
   if(kwsysTerminalStreamIsNotInteractive(stream))
     {
     return 0;

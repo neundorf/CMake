@@ -49,7 +49,7 @@ unset(FortranCInterface_COMPILED CACHE)
 # Locate the sample project executable.
 if(FortranCInterface_COMPILED)
   find_program(FortranCInterface_EXE
-    NAMES FortranCInterface
+    NAMES FortranCInterface${CMAKE_EXECUTABLE_SUFFIX}
     PATHS ${FortranCInterface_BINARY_DIR} ${FortranCInterface_BINARY_DIR}/Debug
     NO_DEFAULT_PATH
     )
@@ -67,11 +67,10 @@ endif()
 set(FortranCInterface_SYMBOLS)
 if(FortranCInterface_EXE)
   file(STRINGS "${FortranCInterface_EXE}" _info_strings
-    LIMIT_COUNT 8 REGEX "INFO:[^[]*\\[")
+    LIMIT_COUNT 8 REGEX "INFO:[A-Za-z0-9_]+\\[[^]]*\\]")
   foreach(info ${_info_strings})
-    if("${info}" MATCHES ".*INFO:symbol\\[([^]]*)\\].*")
-      string(REGEX REPLACE ".*INFO:symbol\\[([^]]*)\\].*" "\\1" symbol "${info}")
-      list(APPEND FortranCInterface_SYMBOLS ${symbol})
+    if("${info}" MATCHES "INFO:symbol\\[([^]]*)\\]")
+      list(APPEND FortranCInterface_SYMBOLS ${CMAKE_MATCH_1})
     endif()
   endforeach()
 elseif(NOT _result)
@@ -174,7 +173,7 @@ file(APPEND ${FortranCInterface_BINARY_DIR}/Output.cmake "\n")
 if(FortranCInterface_GLOBAL_FOUND)
   if(FortranCInterface_MODULE_FOUND)
     set(_result "Found GLOBAL and MODULE mangling")
-  else(FortranCInterface_MODULE_FOUND)
+  else()
     set(_result "Found GLOBAL but not MODULE mangling")
   endif()
 elseif(NOT _result)

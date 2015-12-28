@@ -25,7 +25,7 @@ public:
   /**
    * This is a virtual constructor for the command.
    */
-  virtual cmCommand* Clone() 
+  virtual cmCommand* Clone()
     {
     return new cmEndMacroCommand;
     }
@@ -36,7 +36,7 @@ public:
    */
   virtual bool InvokeInitialPass(std::vector<cmListFileArgument> const&,
                                  cmExecutionStatus &);
-  
+
   /**
    * This is called when the command is first encountered in
    * the CMakeLists.txt file.
@@ -47,31 +47,13 @@ public:
   /**
    * This determines if the command is invoked when in script mode.
    */
-  virtual bool IsScriptable() { return true; }
+  virtual bool IsScriptable() const { return true; }
 
   /**
    * The name of the command as specified in CMakeList.txt.
    */
-  virtual const char* GetName() { return "endmacro";}
+  virtual std::string GetName() const { return "endmacro";}
 
-  /**
-   * Succinct documentation.
-   */
-  virtual const char* GetTerseDocumentation() 
-    {
-    return "Ends a list of commands in a macro block.";
-    }
-  
-  /**
-   * More documentation.
-   */
-  virtual const char* GetFullDocumentation()
-    {
-    return
-      "  endmacro(expression)\n"
-      "See the macro command.";
-    }
-  
   cmTypeMacro(cmEndMacroCommand, cmCommand);
 };
 

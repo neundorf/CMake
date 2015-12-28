@@ -26,12 +26,24 @@ public:
                               const char* dir_permissions,
                               std::vector<std::string> const& configurations,
                               const char* component,
+                              MessageLevel message,
                               const char* literal_args,
                               bool optional = false);
   virtual ~cmInstallDirectoryGenerator();
 
+  void Compute(cmLocalGenerator* lg);
+
+  std::string GetDestination(std::string const& config) const;
+
 protected:
   virtual void GenerateScriptActions(std::ostream& os, Indent const& indent);
+  virtual void GenerateScriptForConfig(std::ostream& os,
+                                       const std::string& config,
+                                       Indent const& indent);
+  void AddDirectoryInstallRule(std::ostream& os,
+                               const std::string& config,
+                               Indent const& indent);
+  cmLocalGenerator* LocalGenerator;
   std::vector<std::string> Directories;
   std::string FilePermissions;
   std::string DirPermissions;

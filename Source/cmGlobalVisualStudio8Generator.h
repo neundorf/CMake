@@ -23,29 +23,27 @@
 class cmGlobalVisualStudio8Generator : public cmGlobalVisualStudio71Generator
 {
 public:
-  cmGlobalVisualStudio8Generator();
-  static cmGlobalGenerator* New() { 
-    return new cmGlobalVisualStudio8Generator; }
-  
-  ///! Get the name for the generator.
-  virtual const char* GetName() const {
-    return cmGlobalVisualStudio8Generator::GetActualName();}
-  static const char* GetActualName() {return "Visual Studio 8 2005";}
+  cmGlobalVisualStudio8Generator(cmake* cm, const std::string& name,
+    const std::string& platformName);
+  static cmGlobalGeneratorFactory* NewFactory();
 
-  virtual const char* GetPlatformName() const {return "Win32";}
+  ///! Get the name for the generator.
+  virtual std::string GetName() const {return this->Name;}
 
   /** Get the documentation entry for this generator.  */
-  virtual void GetDocumentation(cmDocumentationEntry& entry) const;
-  
-  ///! Create a local generator appropriate to this Global Generator
-  virtual cmLocalGenerator *CreateLocalGenerator();
+  static void GetDocumentation(cmDocumentationEntry& entry);
+
+  virtual void EnableLanguage(std::vector<std::string>const& languages,
+                              cmMakefile *, bool optional);
+  virtual void AddPlatformDefinitions(cmMakefile* mf);
+
+  virtual bool SetGeneratorPlatform(std::string const& p, cmMakefile* mf);
 
   /**
    * Override Configure and Generate to add the build-system check
    * target.
    */
   virtual void Configure();
-  virtual void Generate();
 
   /**
    * Where does this version of Visual Studio look for macros for the
@@ -62,26 +60,45 @@ public:
 
   /** Return true if the target project file should have the option
       LinkLibraryDependencies and link to .sln dependencies. */
-  virtual bool NeedLinkLibraryDependencies(cmTarget& target);
+  virtual bool NeedLinkLibraryDependencies(cmGeneratorTarget* target);
+
+  /** Return true if building for Windows CE */
+  virtual bool TargetsWindowsCE() const {
+    return !this->WindowsCEVersion.empty(); }
 
 protected:
+  virtual void AddExtraIDETargets();
   virtual const char* GetIDEVersion() { return "8.0"; }
+
+  virtual std::string FindDevEnvCommand();
 
   virtual bool VSLinksDependencies() const { return false; }
 
-  void AddCheckTarget();
+  bool AddCheckTarget();
+
+  /** Return true if the configuration needs to be deployed */
+  virtual bool NeedsDeploy(cmState::TargetType type) const;
 
   static cmIDEFlagTable const* GetExtraFlagTableVS8();
-  virtual void AddPlatformDefinitions(cmMakefile* mf);
   virtual void WriteSLNHeader(std::ostream& fout);
-  virtual void WriteSolutionConfigurations(std::ostream& fout);
-  virtual void WriteProjectConfigurations(std::ostream& fout,
-                                          const char* name,
-                                          bool partOfDefaultBuild);
+  virtual void WriteSolutionConfigurations(
+    std::ostream& fout, std::vector<std::string> const& configs);
+  virtual void WriteProjectConfigurations(
+    std::ostream& fout, const std::string& name, cmState::TargetType type,
+    std::vector<std::string> const& configs,
+    const std::set<std::string>& configsPartOfDefaultBuild,
+    const std::string& platformMapping = "");
   virtual bool ComputeTargetDepends();
-  virtual void WriteProjectDepends(std::ostream& fout, const char* name,
-                                   const char* path, cmTarget &t);
+  virtual void WriteProjectDepends(std::ostream& fout,
+                                   const std::string& name,
+                                   const char* path,
+                                   const cmGeneratorTarget *t);
 
-  const char* ArchitectureId;
+  std::string Name;
+  std::string WindowsCEVersion;
+
+private:
+  class Factory;
+  friend class Factory;
 };
 #endif

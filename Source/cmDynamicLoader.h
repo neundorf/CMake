@@ -15,8 +15,8 @@
 // libraries into a process.
 
 
-#ifndef __cmDynamicLoader_h
-#define __cmDynamicLoader_h
+#ifndef cmDynamicLoader_h
+#define cmDynamicLoader_h
 
 #include "cmStandardIncludes.h"
 
@@ -36,8 +36,8 @@ public:
   static void FlushCache();
 
 protected:
-  cmDynamicLoader() {};
-  ~cmDynamicLoader() {};
+  cmDynamicLoader() {}
+  ~cmDynamicLoader() {}
 
 private:
   cmDynamicLoader(const cmDynamicLoader&);  // Not implemented.

@@ -20,10 +20,10 @@ bool cmSetCommand
     this->SetError("called with incorrect number of arguments");
     return false;
     }
-  
+
   // watch for ENV signatures
   const char* variable = args[0].c_str(); // VAR is always first
-  if (!strncmp(variable,"ENV{",4) && strlen(variable) > 5)
+  if (cmHasLiteralPrefix(variable, "ENV{") && strlen(variable) > 5)
     {
     // what is the variable name
     char *varName = new char [strlen(variable)];
@@ -31,50 +31,58 @@ bool cmSetCommand
     varName[strlen(variable)-5] = '\0';
     std::string putEnvArg = varName;
     putEnvArg += "=";
-    
+
     // what is the current value if any
     const char *currValue = getenv(varName);
     delete [] varName;
 
     // will it be set to something, then set it
-    if (args.size() > 1 && args[1].size())
+    if (args.size() > 1 && !args[1].empty())
       {
       // but only if it is different from current value
       if (!currValue || strcmp(currValue,args[1].c_str()))
         {
         putEnvArg += args[1];
-        cmSystemTools::PutEnv(putEnvArg.c_str());
+        cmSystemTools::PutEnv(putEnvArg);
         }
       return true;
       }
-    
-    // if it will be cleared, then clear it if it isn;t already clear
+
+    // if it will be cleared, then clear it if it isn't already clear
     if (currValue)
       {
-      cmSystemTools::PutEnv(putEnvArg.c_str());
+      cmSystemTools::PutEnv(putEnvArg);
       }
     return true;
     }
-  
+
   // SET (VAR) // Removes the definition of VAR.
   if (args.size() == 1)
     {
-    this->Makefile->RemoveDefinition(args[0].c_str());
+    this->Makefile->RemoveDefinition(variable);
+    return true;
+    }
+  // SET (VAR PARENT_SCOPE) // Removes the definition of VAR
+                            // in the parent scope.
+  else if (args.size() == 2 && args[args.size()-1] == "PARENT_SCOPE")
+    {
+    this->Makefile->RaiseScope(variable, 0);
     return true;
     }
 
-  // here are the remaining options 
+  // here are the remaining options
   //  SET (VAR value )
+  //  SET (VAR value PARENT_SCOPE)
   //  SET (VAR CACHE TYPE "doc String" [FORCE])
   //  SET (VAR value CACHE TYPE "doc string" [FORCE])
   std::string value;  // optional
   bool cache = false; // optional
   bool force = false; // optional
   bool parentScope = false;
-  cmCacheManager::CacheEntryType type 
-    = cmCacheManager::STRING; // required if cache
+  cmState::CacheEntryType type
+    = cmState::STRING; // required if cache
   const char* docstring = 0; // required if cache
-  
+
   unsigned int ignoreLastArgs = 0;
   // look for PARENT_SCOPE argument
   if (args.size() > 1 && args[args.size()-1] == "PARENT_SCOPE")
@@ -100,29 +108,12 @@ bool cmSetCommand
     }
 
   // collect any values into a single semi-colon separated value list
-  if(static_cast<unsigned short>(args.size()) >
-     static_cast<unsigned short>(1 + ignoreLastArgs))
-    {
-    value = args[1];
-    size_t endPos = args.size() - ignoreLastArgs;
-    for(size_t i = 2; i < endPos; ++i)
-      {
-      value += ";";
-      value += args[i];
-      }
-    }
+  value = cmJoin(cmMakeRange(args).advance(1).retreat(ignoreLastArgs), ";");
 
   if (parentScope)
     {
-    if (value.empty())
-      {
-      this->Makefile->RaiseScope(variable, 0);
-      }
-    else
-      {
-      this->Makefile->RaiseScope(variable, value.c_str());
-      }
-      return true;
+    this->Makefile->RaiseScope(variable, value.c_str());
+    return true;
     }
 
 
@@ -136,29 +127,30 @@ bool cmSetCommand
     this->SetError("given invalid arguments for CACHE mode.");
     return false;
     }
-  
+
   if(cache)
     {
     std::string::size_type cacheStart = args.size() - 3 - (force ? 1 : 0);
-    type = cmCacheManager::StringToType(args[cacheStart+1].c_str());
+    type = cmState::StringToCacheEntryType(args[cacheStart+1].c_str());
     docstring = args[cacheStart+2].c_str();
     }
 
   // see if this is already in the cache
-  cmCacheManager::CacheIterator it = 
-    this->Makefile->GetCacheManager()->GetCacheIterator(variable);
-  if(!it.IsAtEnd() && (it.GetType() != cmCacheManager::UNINITIALIZED))
+  cmState* state = this->Makefile->GetState();
+  const char* existingValue = state->GetCacheEntryValue(variable);
+  if(existingValue &&
+      (state->GetCacheEntryType(variable) != cmState::UNINITIALIZED))
     {
     // if the set is trying to CACHE the value but the value
     // is already in the cache and the type is not internal
     // then leave now without setting any definitions in the cache
     // or the makefile
-    if(cache && type != cmCacheManager::INTERNAL && !force)
+    if(cache && type != cmState::INTERNAL && !force)
       {
       return true;
       }
     }
-  
+
   // if it is meant to be in the cache then define it in the cache
   if(cache)
     {

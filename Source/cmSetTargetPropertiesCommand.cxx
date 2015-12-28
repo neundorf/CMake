@@ -10,7 +10,6 @@
   See the License for more information.
 ============================================================================*/
 #include "cmSetTargetPropertiesCommand.h"
-#include "cmLocalGenerator.h"
 #include "cmGlobalGenerator.h"
 
 // cmSetTargetPropertiesCommand
@@ -25,60 +24,50 @@ bool cmSetTargetPropertiesCommand
 
   // first collect up the list of files
   std::vector<std::string> propertyPairs;
-  bool doingFiles = true;
   int numFiles = 0;
   std::vector<std::string>::const_iterator j;
   for(j= args.begin(); j != args.end();++j)
     {
     if(*j == "PROPERTIES")
       {
-      doingFiles = false;
       // now loop through the rest of the arguments, new style
       ++j;
-      while (j != args.end())
+      if (std::distance(j, args.end()) % 2 != 0)
         {
-        propertyPairs.push_back(*j);
-        ++j;
-        if(j == args.end())
-          {
-          this->SetError("called with incorrect number of arguments.");
-          return false;
-          }
-        propertyPairs.push_back(*j);
-        ++j;
+        this->SetError("called with incorrect number of arguments.");
+        return false;
         }
-      // break out of the loop because j is already == end
+      propertyPairs.insert(propertyPairs.end(), j, args.end());
       break;
-      }
-    else if (doingFiles)
-      {
-      numFiles++;
       }
     else
       {
-      this->SetError("called with illegal arguments, maybe missing "
-                     "a PROPERTIES specifier?");
-      return false;
+      numFiles++;
       }
     }
-  if(propertyPairs.size() == 0)
+  if(propertyPairs.empty())
     {
      this->SetError("called with illegal arguments, maybe missing "
                     "a PROPERTIES specifier?");
      return false;
     }
-  
+
   // now loop over all the targets
   int i;
   for(i = 0; i < numFiles; ++i)
-    {   
+    {
+    if (this->Makefile->IsAlias(args[i]))
+      {
+      this->SetError("can not be used on an ALIAS target.");
+      return false;
+      }
     bool ret = cmSetTargetPropertiesCommand::SetOneTarget
-      (args[i].c_str(),propertyPairs,this->Makefile);
+      (args[i],propertyPairs,this->Makefile);
     if (!ret)
       {
       std::string message = "Can not find target to add properties to: ";
       message += args[i];
-      this->SetError(message.c_str());
+      this->SetError(message);
       return false;
       }
     }
@@ -86,7 +75,7 @@ bool cmSetTargetPropertiesCommand
 }
 
 bool cmSetTargetPropertiesCommand
-::SetOneTarget(const char *tname, 
+::SetOneTarget(const std::string& tname,
                std::vector<std::string> &propertyPairs,
                cmMakefile *mf)
 {
@@ -96,14 +85,14 @@ bool cmSetTargetPropertiesCommand
     unsigned int k;
     for (k = 0; k < propertyPairs.size(); k = k + 2)
       {
-      target->SetProperty(propertyPairs[k].c_str(),
+      target->SetProperty(propertyPairs[k],
                           propertyPairs[k+1].c_str());
-      target->CheckProperty(propertyPairs[k].c_str(), mf);
+      target->CheckProperty(propertyPairs[k], mf);
       }
     }
   // if file is not already in the makefile, then add it
   else
-    { 
+    {
     return false;
     }
   return true;

@@ -27,8 +27,15 @@ public:
   // Store definitions and flags.
   void AddDefine(const std::string& define);
   void AddDefines(const char* defines);
+  void AddDefines(const std::vector<std::string> &defines);
   void AddFlag(const char* flag, const char* value);
+  void AddFlag(const char* flag, std::vector<std::string> const& value);
+  void AppendFlag(std::string const& flag, std::string const& value);
+  void AppendFlag(std::string const& flag,
+                  std::vector<std::string> const& value);
   void RemoveFlag(const char* flag);
+  bool HasFlag(std::string const& flag) const;
+  const char* GetFlag(const char* flag);
 
 protected:
   // create a map of xml tags to the values they should have in the output
@@ -38,22 +45,40 @@ protected:
   // Then parse the command line flags specified in CMAKE_CXX_FLAGS
   // and CMAKE_C_FLAGS
   // and overwrite or add new values to this map
-  std::map<cmStdString, cmStdString> FlagMap;
+  class FlagValue: public std::vector<std::string>
+  {
+    typedef std::vector<std::string> derived;
+  public:
+    FlagValue& operator=(std::string const& r)
+      {
+      this->resize(1);
+      this->operator[](0) = r;
+      return *this;
+      }
+    FlagValue& operator=(std::vector<std::string> const& r)
+      {
+      this->derived::operator=(r);
+      return *this;
+      }
+  };
+  std::map<std::string, FlagValue > FlagMap;
 
   // Preprocessor definitions.
   std::vector<std::string> Defines;
 
   // Unrecognized flags that get no special handling.
-  cmStdString FlagString;
+  std::string FlagString;
 
   bool DoingDefine;
   bool AllowDefine;
   bool AllowSlash;
+  cmIDEFlagTable const* DoingFollowing;
   enum { FlagTableCount = 16 };
   cmIDEFlagTable const* FlagTable[FlagTableCount];
   void HandleFlag(const char* flag);
   bool CheckFlagTable(cmIDEFlagTable const* table, const char* flag,
                       bool& flag_handled);
+  void FlagMapUpdate(cmIDEFlagTable const* entry, const char* new_value);
   virtual void StoreUnknownFlag(const char* flag) = 0;
 };
 

@@ -24,15 +24,15 @@ bool cmGetFilenameComponentCommand
 
   // Check and see if the value has been stored in the cache
   // already, if so use that value
-  if(args.size() == 4 && args[3] == "CACHE")
+  if(args.size() >= 4 && args[args.size() - 1] == "CACHE")
     {
-    const char* cacheValue = this->Makefile->GetDefinition(args[0].c_str());
+    const char* cacheValue = this->Makefile->GetDefinition(args[0]);
     if(cacheValue && !cmSystemTools::IsNOTFOUND(cacheValue))
       {
       return true;
       }
     }
-  
+
   std::string result;
   std::string filename = args[1];
   if(filename.find("[HKEY") != filename.npos)
@@ -58,7 +58,7 @@ bool cmGetFilenameComponentCommand
     }
   std::string storeArgs;
   std::string programArgs;
-  if (args[2] == "PATH")
+  if (args[2] == "DIRECTORY" || args[2] == "PATH")
     {
     result = cmSystemTools::GetFilenamePath(filename);
     }
@@ -79,7 +79,7 @@ bool cmGetFilenameComponentCommand
           }
         }
       }
-    cmSystemTools::SplitProgramFromArgs(filename.c_str(), 
+    cmSystemTools::SplitProgramFromArgs(filename,
                                         result, programArgs);
     }
   else if (args[2] == "EXT")
@@ -93,45 +93,57 @@ bool cmGetFilenameComponentCommand
   else if (args[2] == "ABSOLUTE" ||
            args[2] == "REALPATH")
     {
+    // If the path given is relative, evaluate it relative to the
+    // current source directory unless the user passes a different
+    // base directory.
+    std::string baseDir = this->Makefile->GetCurrentSourceDirectory();
+    for(unsigned int i=3; i < args.size(); ++i)
+      {
+      if(args[i] == "BASE_DIR")
+        {
+        ++i;
+        if(i < args.size())
+          {
+          baseDir = args[i];
+          }
+        }
+      }
     // Collapse the path to its simplest form.
-    // If the path given is relative evaluate it relative to the
-    // current source directory.
-    result = cmSystemTools::CollapseFullPath(
-      filename.c_str(), this->Makefile->GetCurrentDirectory());
+    result = cmSystemTools::CollapseFullPath(filename, baseDir);
     if(args[2] == "REALPATH")
       {
       // Resolve symlinks if possible
-      result = cmSystemTools::GetRealPath(result.c_str());
+      result = cmSystemTools::GetRealPath(result);
       }
     }
-  else 
+  else
     {
     std::string err = "unknown component " + args[2];
-    this->SetError(err.c_str());
+    this->SetError(err);
     return false;
     }
 
-  if(args.size() == 4 && args[3] == "CACHE")
+  if(args.size() >= 4 && args[args.size() - 1] == "CACHE")
     {
-    if(programArgs.size() && storeArgs.size())
+    if(!programArgs.empty() && !storeArgs.empty())
       {
       this->Makefile->AddCacheDefinition
-        (storeArgs.c_str(), programArgs.c_str(),
-         "", args[2] == "PATH" ? cmCacheManager::FILEPATH
-         : cmCacheManager::STRING);
+        (storeArgs, programArgs.c_str(),
+         "", args[2] == "PATH" ? cmState::FILEPATH
+         : cmState::STRING);
       }
     this->Makefile->AddCacheDefinition
-      (args[0].c_str(), result.c_str(), "",
-       args[2] == "PATH" ? cmCacheManager::FILEPATH
-       : cmCacheManager::STRING);
+      (args[0], result.c_str(), "",
+       args[2] == "PATH" ? cmState::FILEPATH
+       : cmState::STRING);
     }
-  else 
+  else
     {
-    if(programArgs.size() && storeArgs.size())
+    if(!programArgs.empty() && !storeArgs.empty())
       {
-      this->Makefile->AddDefinition(storeArgs.c_str(), programArgs.c_str());
+      this->Makefile->AddDefinition(storeArgs, programArgs.c_str());
       }
-    this->Makefile->AddDefinition(args[0].c_str(), result.c_str());
+    this->Makefile->AddDefinition(args[0], result.c_str());
     }
 
   return true;

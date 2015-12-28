@@ -13,7 +13,7 @@
 #define cmComputeLinkDepends_h
 
 #include "cmStandardIncludes.h"
-#include "cmTarget.h"
+#include "cmLinkItem.h"
 
 #include "cmGraphAdjacencyList.h"
 
@@ -21,9 +21,8 @@
 
 class cmComputeComponentGraph;
 class cmGlobalGenerator;
-class cmLocalGenerator;
 class cmMakefile;
-class cmTarget;
+class cmGeneratorTarget;
 class cmake;
 
 /** \class cmComputeLinkDepends
@@ -32,14 +31,15 @@ class cmake;
 class cmComputeLinkDepends
 {
 public:
-  cmComputeLinkDepends(cmTarget* target, const char* config);
+  cmComputeLinkDepends(cmGeneratorTarget const* target,
+                       const std::string& config);
   ~cmComputeLinkDepends();
 
   // Basic information about each link item.
   struct LinkEntry
   {
     std::string Item;
-    cmTarget* Target;
+    cmGeneratorTarget const* Target;
     bool IsSharedDep;
     bool IsFlag;
     LinkEntry(): Item(), Target(0), IsSharedDep(false), IsFlag(false) {}
@@ -52,40 +52,32 @@ public:
   EntryVector const& Compute();
 
   void SetOldLinkDirMode(bool b);
-  std::set<cmTarget*> const& GetOldWrongConfigItems() const
+  std::set<cmGeneratorTarget const*> const& GetOldWrongConfigItems() const
     { return this->OldWrongConfigItems; }
 
 private:
 
   // Context information.
-  cmTarget* Target;
+  cmGeneratorTarget const* Target;
   cmMakefile* Makefile;
-  cmLocalGenerator* LocalGenerator;
-  cmGlobalGenerator* GlobalGenerator;
+  cmGlobalGenerator const* GlobalGenerator;
   cmake* CMakeInstance;
-  bool DebugMode;
-
-  // Configuration information.
-  const char* Config;
-  cmTarget::LinkLibraryType LinkType;
-
-  // Output information.
+  std::string Config;
   EntryVector FinalLinkEntries;
 
-  typedef cmTarget::LinkLibraryVectorType LinkLibraryVectorType;
-
-  std::map<cmStdString, int>::iterator
+  std::map<std::string, int>::iterator
   AllocateLinkEntry(std::string const& item);
-  int AddLinkEntry(int depender_index, std::string const& item);
+  int AddLinkEntry(cmLinkItem const& item);
   void AddVarLinkEntries(int depender_index, const char* value);
   void AddDirectLinkEntries();
-  void AddLinkEntries(int depender_index,
-                      std::vector<std::string> const& libs);
-  cmTarget* FindTargetToLink(int depender_index, const char* name);
+  template <typename T>
+    void AddLinkEntries(int depender_index, std::vector<T> const& libs);
+  cmGeneratorTarget const* FindTargetToLink(int depender_index,
+                                            const std::string& name);
 
   // One entry for each unique item.
   std::vector<LinkEntry> EntryList;
-  std::map<cmStdString, int> LinkEntryIndex;
+  std::map<std::string, int> LinkEntryIndex;
 
   // BFS of initial dependencies.
   struct BFSEntry
@@ -101,12 +93,16 @@ private:
   // of the interface.
   struct SharedDepEntry
   {
-    std::string Item;
+    cmLinkItem Item;
     int DependerIndex;
   };
   std::queue<SharedDepEntry> SharedDepQueue;
+  std::set<int> SharedDepFollowed;
+  void FollowSharedDeps(int depender_index,
+                        cmLinkInterface const* iface,
+                        bool follow_interface = false);
   void QueueSharedDependencies(int depender_index,
-                               std::vector<std::string> const& deps);
+                               std::vector<cmLinkItem> const& deps);
   void HandleSharedDependency(SharedDepEntry const& dep);
 
   // Dependency inferral for each link item.
@@ -127,7 +123,7 @@ private:
   void OrderLinkEntires();
   std::vector<char> ComponentVisited;
   std::vector<int> ComponentOrder;
-  int ComponentOrderId;
+
   struct PendingComponent
   {
     // The real component id.  Needed because the map is indexed by
@@ -154,11 +150,14 @@ private:
 
   // Record of the original link line.
   std::vector<int> OriginalEntries;
+  std::set<cmGeneratorTarget const*> OldWrongConfigItems;
+  void CheckWrongConfigItem(cmLinkItem const& item);
 
-  // Compatibility help.
+  int ComponentOrderId;
+  cmTargetLinkLibraryType LinkType;
+  bool HasConfig;
+  bool DebugMode;
   bool OldLinkDirMode;
-  void CheckWrongConfigItem(int depender_index, std::string const& item);
-  std::set<cmTarget*> OldWrongConfigItems;
 };
 
 #endif

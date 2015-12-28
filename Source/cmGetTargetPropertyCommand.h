@@ -17,7 +17,7 @@
 class cmGetTargetPropertyCommand : public cmCommand
 {
 public:
-  virtual cmCommand* Clone() 
+  virtual cmCommand* Clone()
     {
       return new cmGetTargetPropertyCommand;
     }
@@ -32,34 +32,8 @@ public:
   /**
    * The name of the command as specified in CMakeList.txt.
    */
-  virtual const char* GetName() { return "get_target_property";}
+  virtual std::string GetName() const { return "get_target_property";}
 
-  /**
-   * Succinct documentation.
-   */
-  virtual const char* GetTerseDocumentation() 
-    {
-    return "Get a property from a target.";
-    }
-  
-  /**
-   * Longer documentation.
-   */
-  virtual const char* GetFullDocumentation()
-    {
-      return
-        "  get_target_property(VAR target property)\n"
-        "Get a property from a target.   The value of the property is "
-        "stored in the variable VAR.  If the property is not found, VAR "
-        "will be set to \"NOTFOUND\".  Use set_target_properties to set "
-        "property values.  Properties are usually used to control how "
-        "a target is built, but some query the target instead.  "
-        "This command can get properties for any target so far created. "
-        "The targets do not need to be in the current CMakeLists.txt file."
-        "\n"
-        "See also the more general get_property() command.";
-    }
-  
   cmTypeMacro(cmGetTargetPropertyCommand, cmCommand);
 };
 
