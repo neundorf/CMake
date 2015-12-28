@@ -76,10 +76,10 @@ std::string cmGlobalUnixMakefileGenerator3::GetEditCacheCommand() const
 {
   // If generating for an extra IDE, the edit_cache target cannot
   // launch a terminal-interactive tool, so always use cmake-gui.
-  if(!this->GetExtraGeneratorName().empty())
-    {
-    return cmSystemTools::GetCMakeGUICommand();
-    }
+//   if(!this->GetExtraGeneratorName().empty())
+//     {
+//     return cmSystemTools::GetCMakeGUICommand();
+//     }
 
   // Use an internal cache entry to track the latest dialog used
   // to edit the cache, and use that for the edit_cache target.

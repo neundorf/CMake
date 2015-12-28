@@ -27,7 +27,8 @@
 #include "cmVersion.h"
 #include "cmTargetExport.h"
 #include "cmComputeTargetDepends.h"
-#include "cmGeneratedFileStream.h"
+#include "cmGeneratedFileStream.h"81
+
 #include "cmGeneratorTarget.h"
 #include "cmGeneratorExpression.h"
 #include "cmExportBuildFileGenerator.h"
@@ -81,7 +82,6 @@ cmGlobalGenerator::cmGlobalGenerator(cmake* cm)
   // how long to let try compiles run
   this->TryCompileTimeout = 0;
 
-  this->ExtraGenerator = 0;
   this->CurrentMakefile = 0;
   this->TryCompileOuterMakefile = 0;
 
@@ -91,7 +91,6 @@ cmGlobalGenerator::cmGlobalGenerator(cmake* cm)
 cmGlobalGenerator::~cmGlobalGenerator()
 {
   this->ClearGeneratorMembers();
-  delete this->ExtraGenerator;
 }
 
 bool cmGlobalGenerator::SetGeneratorPlatform(std::string const& p,
@@ -806,11 +805,6 @@ cmGlobalGenerator::EnableLanguage(std::vector<std::string>const& languages,
     {
     mf->ReadListFile(projectCompatibility.c_str());
     }
-  // Inform any extra generator of the new language.
-  if (this->ExtraGenerator)
-    {
-    this->ExtraGenerator->EnableLanguage(languages, mf, false);
-    }
 
   if(fatalError)
     {
@@ -1415,11 +1409,6 @@ void cmGlobalGenerator::Generate()
   this->CheckRuleHashes();
 
   this->WriteSummary();
-
-  if (this->ExtraGenerator != 0)
-    {
-    this->ExtraGenerator->Generate();
-    }
 
   if(!this->CMP0042WarnTargets.empty())
     {
@@ -2726,21 +2715,6 @@ bool cmGlobalGenerator::IsReservedTarget(std::string const& name)
   return std::find(cmArrayBegin(reservedTargets),
                    cmArrayEnd(reservedTargets), name)
       != cmArrayEnd(reservedTargets);
-}
-
-void cmGlobalGenerator::SetExternalMakefileProjectGenerator(
-                            cmExternalMakefileProjectGenerator *extraGenerator)
-{
-  this->ExtraGenerator = extraGenerator;
-  if (this->ExtraGenerator!=0)
-    {
-    this->ExtraGenerator->SetGlobalGenerator(this);
-    }
-}
-
-std::string cmGlobalGenerator::GetExtraGeneratorName() const
-{
-  return this->ExtraGenerator? this->ExtraGenerator->GetName() : std::string();
 }
 
 void cmGlobalGenerator::FileReplacedDuringGenerate(const std::string& filename)

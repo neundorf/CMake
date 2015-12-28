@@ -220,7 +220,6 @@ set(SRCS
   cmExportSet.cxx
   cmExportSetMap.h
   cmExportSetMap.cxx
-  cmExternalMakefileProjectGenerator.cxx
   cmExternalMakefileProjectGenerator.h
   cmExtraCodeBlocksGenerator.cxx
   cmExtraCodeBlocksGenerator.h

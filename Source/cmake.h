@@ -359,18 +359,10 @@ protected:
   void InitializeProperties();
   int HandleDeleteCacheVariables(const std::string& var);
 
-  typedef
-     cmExternalMakefileProjectGenerator* (*CreateExtraGeneratorFunctionType)();
-  typedef std::map<std::string,
-                CreateExtraGeneratorFunctionType> RegisteredExtraGeneratorsMap;
   typedef std::vector<cmGlobalGeneratorFactory*> RegisteredGeneratorsVector;
   RegisteredGeneratorsVector Generators;
-  RegisteredExtraGeneratorsMap ExtraGenerators;
   void AddDefaultCommands();
   void AddDefaultGenerators();
-  void AddDefaultExtraGenerators();
-  void AddExtraGenerator(const std::string& name,
-                         CreateExtraGeneratorFunctionType newFunction);
 
   cmGlobalGenerator *GlobalGenerator;
   cmCacheManager *CacheManager;

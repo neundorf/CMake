@@ -41,8 +41,6 @@ public:
 
   virtual void GetDocumentation(cmDocumentationEntry& entry,
                                 const std::string&    fullName) const;
-  virtual void EnableLanguage(std::vector<std::string> const& languages,
-                              cmMakefile *, bool optional);
 
   virtual void Generate();
 

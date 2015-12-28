@@ -41,8 +41,6 @@ public:
   /** Get the documentation entry for this generator.  */
   virtual void GetDocumentation(cmDocumentationEntry& entry,
                                 const std::string& fullName) const = 0;
-  virtual void EnableLanguage(std::vector<std::string> const& languages,
-                              cmMakefile *, bool optional);
 
   ///! set the global generator which will generate the makefiles
   virtual void SetGlobalGenerator(cmGlobalGenerator* generator)
@@ -51,15 +49,6 @@ public:
   ///! Return the list of global generators supported by this extra generator
   const std::vector<std::string>& GetSupportedGlobalGenerators() const
                                       {return this->SupportedGlobalGenerators;}
-
-  ///! Get the name of the global generator for the given full name
-  std::string GetGlobalGeneratorName(const std::string& fullName);
-  /** Create a full name from the given global generator name and the
-   * extra generator name
-   */
-  static std::string CreateFullGeneratorName(
-                                            const std::string& globalGenerator,
-                                            const std::string& extraGenerator);
 
   ///! Generate the project files, the Makefiles have already been generated
   virtual void Generate() = 0;

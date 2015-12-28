@@ -50,10 +50,10 @@ endif()
 
 # optionally include a file which can do extra-generator specific things, e.g.
 # CMakeFindEclipseCDT4.cmake asks gcc for the system include dirs for the Eclipse CDT4 generator
-if(CMAKE_EXTRA_GENERATOR)
-  string(REPLACE " " "" _CMAKE_EXTRA_GENERATOR_NO_SPACES ${CMAKE_EXTRA_GENERATOR} )
-  include("CMakeFind${_CMAKE_EXTRA_GENERATOR_NO_SPACES}" OPTIONAL)
-endif()
+# if(CMAKE_EXTRA_GENERATOR)
+#   string(REPLACE " " "" _CMAKE_EXTRA_GENERATOR_NO_SPACES ${CMAKE_EXTRA_GENERATOR} )
+#   include("CMakeFind${_CMAKE_EXTRA_GENERATOR_NO_SPACES}" OPTIONAL)
+# endif()
 
 
 # for most systems a module is the same as a shared library

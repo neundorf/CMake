@@ -36,7 +36,6 @@ class cmake;
 class cmGeneratorTarget;
 class cmMakefile;
 class cmLocalGenerator;
-class cmExternalMakefileProjectGenerator;
 class cmTarget;
 class cmInstallTargetGenerator;
 class cmInstallFilesGenerator;
@@ -189,12 +188,6 @@ public:
   {this->CurrentMakefile = mf;}
 
   void AddMakefile(cmMakefile *mf);
-
-  ///! Set an generator for an "external makefile based project"
-  void SetExternalMakefileProjectGenerator(
-                           cmExternalMakefileProjectGenerator *extraGenerator);
-
-  std::string GetExtraGeneratorName() const;
 
   void AddInstallComponent(const char* component);
 
@@ -460,8 +453,6 @@ private:
                                     std::string const& lang) const;
 
   void ComputeBuildFileGenerators();
-
-  cmExternalMakefileProjectGenerator* ExtraGenerator;
 
   // track files replaced during a Generate
   std::vector<std::string> FilesReplacedDuringGenerate;

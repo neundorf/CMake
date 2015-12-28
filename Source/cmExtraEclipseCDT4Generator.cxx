@@ -53,7 +53,8 @@ void cmExtraEclipseCDT4Generator
 }
 
 //----------------------------------------------------------------------------
-void cmExtraEclipseCDT4Generator
+#warning use cmGlobalGenerator::GetEnabledLanguages() instead
+/*void cmExtraEclipseCDT4Generator
 ::EnableLanguage(std::vector<std::string> const& languages,
                  cmMakefile *, bool)
 {
@@ -74,7 +75,7 @@ void cmExtraEclipseCDT4Generator
       this->Natures.insert("org.eclipse.jdt.core.javanature");
       }
     }
-}
+}*/
 
 //----------------------------------------------------------------------------
 void cmExtraEclipseCDT4Generator::Generate()
