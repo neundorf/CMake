@@ -103,9 +103,9 @@ private:
   void CreateLinksToSubprojects(cmGeneratedFileStream& fout,
                                 const std::string& baseDir);
   void CreateLinksForTargets(cmGeneratedFileStream& fout);
+  void GetEnabledLanguages(std::set<std::string>& natures);
 
   std::vector<std::string> SrcLinkedResources;
-  std::set<std::string> Natures;
   std::string HomeDirectory;
   std::string HomeOutputDirectory;
   bool IsOutOfSourceBuild;

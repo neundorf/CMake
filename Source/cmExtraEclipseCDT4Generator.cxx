@@ -53,29 +53,29 @@ void cmExtraEclipseCDT4Generator
 }
 
 //----------------------------------------------------------------------------
-#warning use cmGlobalGenerator::GetEnabledLanguages() instead
-/*void cmExtraEclipseCDT4Generator
-::EnableLanguage(std::vector<std::string> const& languages,
-                 cmMakefile *, bool)
+void cmExtraEclipseCDT4Generator
+::GetEnabledLanguages(std::set<std::string>& natures)
 {
+  std::vector<std::string> languages;
+  this->GlobalGenerator->GetEnabledLanguages(languages);
   for (std::vector<std::string>::const_iterator lit = languages.begin();
        lit != languages.end(); ++lit)
     {
     if (*lit == "CXX")
       {
-      this->Natures.insert("org.eclipse.cdt.core.ccnature");
-      this->Natures.insert("org.eclipse.cdt.core.cnature");
+      natures.insert("org.eclipse.cdt.core.ccnature");
+      natures.insert("org.eclipse.cdt.core.cnature");
       }
     else if (*lit == "C")
       {
-      this->Natures.insert("org.eclipse.cdt.core.cnature");
+      natures.insert("org.eclipse.cdt.core.cnature");
       }
     else if (*lit == "Java")
       {
-      this->Natures.insert("org.eclipse.jdt.core.javanature");
+      natures.insert("org.eclipse.jdt.core.javanature");
       }
     }
-}*/
+}
 
 //----------------------------------------------------------------------------
 void cmExtraEclipseCDT4Generator::Generate()
@@ -466,8 +466,10 @@ void cmExtraEclipseCDT4Generator::CreateProjectFile()
     "\t\t<nature>org.eclipse.cdt.make.core.makeNature</nature>\n"
     "\t\t<nature>org.eclipse.cdt.make.core.ScannerConfigNature</nature>\n";
 
-  for (std::set<std::string>::const_iterator nit=this->Natures.begin();
-       nit != this->Natures.end(); ++nit)
+  std::set<std::string> natures;
+  this->GetEnabledLanguages(natures);
+  for (std::set<std::string>::const_iterator nit=natures.begin();
+       nit != natures.end(); ++nit)
     {
     fout << "\t\t<nature>" << *nit << "</nature>\n";
     }
