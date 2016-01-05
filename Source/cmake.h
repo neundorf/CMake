@@ -144,6 +144,7 @@ class cmake
    * workspaces. Generate does that.  */
   int Configure();
   int ActualConfigure();
+  void ConfigureExtraGenerators();
 
   ///! Break up a line like VAR:type="value" into var, type and value
   static bool ParseCacheEntry(const std::string& entry,
@@ -366,6 +367,7 @@ protected:
 
   cmGlobalGenerator *GlobalGenerator;
   cmCacheManager *CacheManager;
+  std::vector<cmExternalMakefileProjectGenerator*> ExtraGenerators;
   std::map<std::string, DiagLevel> DiagLevels;
   std::string GeneratorPlatform;
   std::string GeneratorToolset;

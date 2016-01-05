@@ -1438,6 +1438,12 @@ int cmake::ActualConfigure()
 
   // actually do the configure
   this->GlobalGenerator->Configure();
+
+  if (!this->State->GetIsInTryCompile())
+    {
+    this->ConfigureExtraGenerators();
+    }
+
   // Before saving the cache
   // if the project did not define one of the entries below, add them now
   // so users can edit the values in the cache:
@@ -1488,6 +1494,44 @@ int cmake::ActualConfigure()
     return -1;
     }
   return 0;
+}
+
+void cmake::ConfigureExtraGenerators()
+{
+  cmMakefile* mf=this->GlobalGenerator->GetMakefiles()[0];
+  std::string extraGenFile = mf->GetModulesFile("CMakeExtraGenerators.cmake");
+  mf->ReadListFile(extraGenFile.c_str());
+
+  if (mf->IsOn("CMAKE_ENABLE_EXTRA_GENERATOR_KATE"))
+    {
+    this->ExtraGenerators.push_back(new cmExtraKateGenerator());
+    }
+
+  if (mf->IsOn("CMAKE_ENABLE_EXTRA_GENERATOR_KDEVELOP3"))
+    {
+    this->ExtraGenerators.push_back(new cmGlobalKdevelopGenerator());
+    }
+
+  if (mf->IsOn("CMAKE_ENABLE_EXTRA_GENERATOR_ECLIPSE"))
+    {
+    this->ExtraGenerators.push_back(new cmExtraEclipseCDT4Generator());
+    }
+
+  if (mf->IsOn("CMAKE_ENABLE_EXTRA_GENERATOR_CODEBLOCKS"))
+    {
+    this->ExtraGenerators.push_back(new cmExtraCodeBlocksGenerator());
+    }
+
+  if (mf->IsOn("CMAKE_ENABLE_EXTRA_GENERATOR_CODELITE"))
+    {
+    this->ExtraGenerators.push_back(new cmExtraCodeLiteGenerator());
+    }
+
+  if (mf->IsOn("CMAKE_ENABLE_EXTRA_GENERATOR_SUBLIME"))
+    {
+    this->ExtraGenerators.push_back(new cmExtraSublimeTextGenerator());
+    }
+
 }
 
 void cmake::PreLoadCMakeFiles()
@@ -1634,6 +1678,17 @@ int cmake::Generate()
     return -1;
     }
   this->GlobalGenerator->Generate();
+
+  for(std::vector<cmExternalMakefileProjectGenerator*>::iterator it = this->ExtraGenerators.begin();
+      it != this->ExtraGenerators.end();
+      ++it)
+    {
+    cmExternalMakefileProjectGenerator* extraGen = *it;
+    extraGen->SetGlobalGenerator(this->GlobalGenerator);
+    extraGen->Generate();
+    }
+
+
   if ( !this->GraphVizFile.empty() )
     {
     std::cout << "Generate graphviz: " << this->GraphVizFile << std::endl;
